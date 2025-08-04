@@ -82,6 +82,31 @@ const isAdminAuthenticated = (req, res, next) => {
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
+/**
+ * Safely parses combo_ids from a daily event object.
+ * Handles cases where the data might be a JSON string or not an array.
+ * @param {object | null} event The daily event object from the database.
+ * @returns {string[]} A valid array of combo IDs, or an empty array.
+ */
+const parseComboIds = (event) => {
+    if (!event || !event.combo_ids) {
+        return [];
+    }
+    if (Array.isArray(event.combo_ids)) {
+        return event.combo_ids;
+    }
+    if (typeof event.combo_ids === 'string') {
+        try {
+            const parsed = JSON.parse(event.combo_ids);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            console.warn('Could not parse combo_ids string from DB:', event.combo_ids);
+            return [];
+        }
+    }
+    return [];
+};
+
 
 // --- PUBLIC GAME API ROUTES ---
 app.get('/', (req, res) => res.send('Ukhyliant Clicker Backend is running!'));
@@ -95,9 +120,12 @@ app.post('/api/login', async (req, res) => {
         
         const userId = tgUser.id.toString();
         const config = await getConfig();
-        const dailyEvent = await getDailyEvent(getTodayDate());
+        let dailyEvent = await getDailyEvent(getTodayDate());
         
-        // The pg driver automatically parses JSONB, so dailyEvent.combo_ids is already an array.
+        if (dailyEvent) {
+            // Defensively parse combo_ids to ensure it's always an array
+            dailyEvent.combo_ids = parseComboIds(dailyEvent);
+        }
         config.dailyEvent = dailyEvent;
 
         let user = await getUser(userId);
@@ -254,14 +282,16 @@ app.post('/api/action/claim-combo', async (req, res) => {
         const { userId } = req.body;
         const player = await getPlayer(userId);
         const dailyEvent = await getDailyEvent(getTodayDate());
-        const comboIds = dailyEvent?.combo_ids;
+        
+        // Safely parse combo_ids to ensure it's an array
+        const comboIds = parseComboIds(dailyEvent);
 
-        if (!player || !dailyEvent || !Array.isArray(comboIds) || player.claimedComboToday) {
+        if (!player || !dailyEvent || comboIds.length === 0 || player.claimedComboToday) {
             return res.status(400).json({ error: 'Cannot claim combo.' });
         }
         
-        if (comboIds.length === 0) {
-            return res.status(400).json({ error: 'No combo configured for today.' });
+        if (comboIds.length !== 3) {
+            return res.status(400).json({ error: 'Daily combo is not configured correctly for today.' });
         }
 
         const hasAllComboCards = comboIds.every(id => (player.upgrades[id] || 0) > 0);
@@ -360,6 +390,9 @@ app.get('/admin/api/dashboard-stats', isAdminAuthenticated, async (req, res) => 
 app.get('/admin/api/daily-events', isAdminAuthenticated, async (req, res) => {
     try {
         const event = await getDailyEvent(getTodayDate());
+        if (event) {
+            event.combo_ids = parseComboIds(event);
+        }
         res.json(event || { combo_ids: [], cipher_word: '' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch daily events' });
