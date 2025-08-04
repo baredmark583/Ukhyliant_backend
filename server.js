@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -17,7 +16,8 @@ import {
     applyReferralBonus, 
     updateUserLanguage,
     unlockSpecialTask,
-    completeAndRewardSpecialTask
+    completeAndRewardSpecialTask,
+    getAllPlayersForAdmin
 } from './db.js';
 import { ADMIN_TELEGRAM_ID, MODERATOR_TELEGRAM_IDS, MAX_ENERGY, ENERGY_REGEN_RATE } from './constants.js';
 
@@ -274,6 +274,16 @@ app.get('/admin', isAdminAuthenticated, (req, res) => {
 
 
 // --- ADMIN API (PROTECTED) ---
+app.get('/admin/api/players', isAdminAuthenticated, async (req, res) => {
+    try {
+        const players = await getAllPlayersForAdmin();
+        res.json(players);
+    } catch (error) {
+        console.error("Failed to get players:", error);
+        res.status(500).json({ error: "Internal server error while fetching players." });
+    }
+});
+
 app.get('/admin/api/config', isAdminAuthenticated, async (req, res) => {
     const config = await getConfig();
     res.json(config);

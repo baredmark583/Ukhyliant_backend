@@ -1,4 +1,3 @@
-
 import pg from 'pg';
 import { INITIAL_BOOSTS, INITIAL_SPECIAL_TASKS, INITIAL_TASKS, INITIAL_UPGRADES, REFERRAL_BONUS } from './constants.js';
 
@@ -159,4 +158,21 @@ export const completeAndRewardSpecialTask = async (userId, taskId) => {
     } finally {
         client.release();
     }
+};
+
+export const getAllPlayersForAdmin = async () => {
+    const query = `
+        SELECT 
+            u.id, 
+            u.name, 
+            u.language, 
+            COALESCE((p.data->>'referrals')::int, 0) as referrals,
+            COALESCE((p.data->>'balance')::bigint, 0) as balance,
+            COALESCE((p.data->>'stars')::int, 0) as stars
+        FROM users u
+        LEFT JOIN players p ON u.id = p.id
+        ORDER BY (p.data->>'balance')::bigint DESC NULLS LAST;
+    `;
+    const res = await executeQuery(query);
+    return res.rows;
 };
