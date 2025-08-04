@@ -17,7 +17,8 @@ import {
     updateUserLanguage,
     unlockSpecialTask,
     completeAndRewardSpecialTask,
-    getAllPlayersForAdmin
+    getAllPlayersForAdmin,
+    deletePlayer
 } from './db.js';
 import { ADMIN_TELEGRAM_ID, MODERATOR_TELEGRAM_IDS, MAX_ENERGY, ENERGY_REGEN_RATE } from './constants.js';
 
@@ -281,6 +282,17 @@ app.get('/admin/api/players', isAdminAuthenticated, async (req, res) => {
     } catch (error) {
         console.error("Failed to get players:", error);
         res.status(500).json({ error: "Internal server error while fetching players." });
+    }
+});
+
+app.delete('/admin/api/player/:id', isAdminAuthenticated, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await deletePlayer(id);
+        res.status(200).json({ message: 'Player deleted successfully.' });
+    } catch (error) {
+        console.error("Failed to delete player:", error);
+        res.status(500).json({ error: "Internal server error while deleting player." });
     }
 });
 

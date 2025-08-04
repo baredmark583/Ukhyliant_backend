@@ -84,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <th class="p-3 text-left text-sm font-semibold text-gray-300">Звезды</th>
                     <th class="p-3 text-left text-sm font-semibold text-gray-300">Рефералы</th>
                     <th class="p-3 text-left text-sm font-semibold text-gray-300">Язык</th>
+                    <th class="p-3 text-left text-sm font-semibold text-gray-300">Действия</th>
                 </tr>
             </thead>`;
 
@@ -97,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="p-3 text-sm">${Number(player.stars).toLocaleString()}</td>
                         <td class="p-3 text-sm">${Number(player.referrals).toLocaleString()}</td>
                         <td class="p-3 text-sm uppercase">${player.language}</td>
+                        <td class="p-3"><button data-player-id="${player.id}" class="delete-player-btn text-red-500 hover:text-red-400 font-bold text-sm">Удалить</button></td>
                     </tr>
                 `).join('')}
             </tbody>`;
@@ -267,6 +269,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const handleDeletePlayer = async (e) => {
+        const button = e.target.closest('.delete-player-btn');
+        if (!button) return;
+
+        const playerId = button.dataset.playerId;
+        if (confirm(`Вы уверены, что хотите удалить игрока с ID ${playerId}? Это действие необратимо.`)) {
+            try {
+                const response = await fetch(`/admin/api/player/${playerId}`, {
+                    method: 'DELETE',
+                });
+                if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'Failed to delete player');
+                }
+                alert('Игрок успешно удален.');
+                await fetchPlayers();
+                render();
+            } catch (error) {
+                console.error('Deletion error:', error);
+                alert(`Ошибка при удалении игрока: ${error.message}`);
+            }
+        }
+    };
+
     const handleSearch = (e) => {
         const searchTerm = e.target.value.toLowerCase();
         const filtered = allPlayers.filter(p => 
@@ -283,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabContainer.querySelectorAll('.translate-btn').forEach(btn => btn.addEventListener('click', handleTranslate));
         tabContainer.querySelectorAll('.add-new-btn').forEach(btn => btn.addEventListener('click', addNewItem));
         tabContainer.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', deleteItem));
+        tabContainer.querySelectorAll('.delete-player-btn').forEach(btn => btn.addEventListener('click', handleDeletePlayer));
         const searchInput = document.getElementById('player-search');
         if (searchInput) searchInput.addEventListener('input', handleSearch);
     };

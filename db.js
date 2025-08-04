@@ -86,16 +86,36 @@ export const updateUserLanguage = async (id, language) => {
 }
 
 export const applyReferralBonus = async (referrerId) => {
-    const query = `
-        UPDATE players
-        SET data = jsonb_set(
-            jsonb_set(data, '{balance}', to_jsonb((COALESCE(data->>'balance', '0'))::numeric + $1)),
-            '{referrals}', to_jsonb((COALESCE(data->>'referrals', '0'))::numeric + 1)
-        )
-        WHERE id = $2
-    `;
-    await executeQuery(query, [REFERRAL_BONUS, referrerId]);
-    console.log(`Applied referral bonus to user ${referrerId}`);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const playerRes = await client.query('SELECT data FROM players WHERE id = $1 FOR UPDATE', [referrerId]);
+        if (playerRes.rows.length === 0) {
+            console.warn(`Referrer with ID ${referrerId} not found. Cannot apply bonus.`);
+            await client.query('ROLLBACK');
+            return;
+        }
+        
+        const playerData = playerRes.rows[0].data;
+        const newBalance = (playerData.balance || 0) + REFERRAL_BONUS;
+        const newReferrals = (playerData.referrals || 0) + 1;
+        
+        playerData.balance = newBalance;
+        playerData.referrals = newReferrals;
+
+        await client.query('UPDATE players SET data = $1 WHERE id = $2', [playerData, referrerId]);
+        
+        await client.query('COMMIT');
+        console.log(`Applied referral bonus to user ${referrerId}`);
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Transaction failed for applyReferralBonus for referrer ${referrerId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 export const unlockSpecialTask = async (userId, taskId) => {
@@ -161,9 +181,6 @@ export const completeAndRewardSpecialTask = async (userId, taskId) => {
 };
 
 export const getAllPlayersForAdmin = async () => {
-    // This function is rewritten to be more robust.
-    // Instead of a single complex JOIN, it fetches users and players separately and merges them in code.
-    // This avoids potential crashes on complex queries in some cloud environments.
     const usersRes = await executeQuery('SELECT id, name, language FROM users');
     const playersRes = await executeQuery('SELECT id, data FROM players');
 
@@ -181,8 +198,22 @@ export const getAllPlayersForAdmin = async () => {
         };
     });
 
-    // Sort by balance descending
     allPlayers.sort((a, b) => b.balance - a.balance);
 
     return allPlayers;
+};
+
+export const deletePlayer = async (userId) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM players WHERE id = $1', [userId]);
+        await client.query('DELETE FROM users WHERE id = $1', [userId]);
+        await client.query('COMMIT');
+        console.log(`Deleted user and player with ID: ${userId}`);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Failed to delete player ${userId}:`, error);
+        throw error;
+    }
 };
