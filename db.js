@@ -90,8 +90,8 @@ export const applyReferralBonus = async (referrerId) => {
     const query = `
         UPDATE players
         SET data = jsonb_set(
-            jsonb_set(data, '{balance}', (COALESCE((data->'balance')::numeric, 0) + $1)::jsonb),
-            '{referrals}', (COALESCE((data->'referrals')::numeric, 0) + 1)::jsonb
+            jsonb_set(data, '{balance}', to_jsonb((COALESCE(data->>'balance', '0'))::numeric + $1)),
+            '{referrals}', to_jsonb((COALESCE(data->>'referrals', '0'))::numeric + 1)
         )
         WHERE id = $2
     `;
@@ -139,8 +139,8 @@ export const completeAndRewardSpecialTask = async (userId, taskId) => {
             UPDATE players
             SET data = jsonb_set(
                         jsonb_set(
-                            jsonb_set(data, '{balance}', $1::jsonb),
-                            '{stars}', $2::jsonb
+                            jsonb_set(data, '{balance}', to_jsonb($1)),
+                            '{stars}', to_jsonb($2)
                         ),
                         '{completedSpecialTaskIds}', $3::jsonb
                     )
