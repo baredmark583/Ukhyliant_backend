@@ -115,7 +115,7 @@ app.post('/api/translate', async (req, res) => {
             model: "gemini-2.5-flash",
             contents: prompt,
         });
-        res.json({ translatedText: response.text.trim() });
+        res.json({ translatedText: response.text });
     } catch (error) {
         console.error("Translation API error:", error);
         res.status(500).json({ error: "Failed to translate text" });
