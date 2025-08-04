@@ -82,20 +82,6 @@ const isAdminAuthenticated = (req, res, next) => {
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
-const parseComboIds = (ids) => {
-    if (Array.isArray(ids)) return ids;
-    if (typeof ids === 'string') {
-        try {
-            const parsed = JSON.parse(ids);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            console.error("Failed to parse combo_ids from DB string:", ids, e);
-            return [];
-        }
-    }
-    return [];
-};
-
 
 // --- PUBLIC GAME API ROUTES ---
 app.get('/', (req, res) => res.send('Ukhyliant Clicker Backend is running!'));
@@ -111,10 +97,7 @@ app.post('/api/login', async (req, res) => {
         const config = await getConfig();
         const dailyEvent = await getDailyEvent(getTodayDate());
         
-        if (dailyEvent) {
-            dailyEvent.combo_ids = parseComboIds(dailyEvent.combo_ids);
-        }
-        
+        // The pg driver automatically parses JSONB, so dailyEvent.combo_ids is already an array.
         config.dailyEvent = dailyEvent;
 
         let user = await getUser(userId);
@@ -271,12 +254,12 @@ app.post('/api/action/claim-combo', async (req, res) => {
         const { userId } = req.body;
         const player = await getPlayer(userId);
         const dailyEvent = await getDailyEvent(getTodayDate());
+        const comboIds = dailyEvent?.combo_ids;
 
-        if (!player || !dailyEvent || !dailyEvent.combo_ids || player.claimedComboToday) {
+        if (!player || !dailyEvent || !Array.isArray(comboIds) || player.claimedComboToday) {
             return res.status(400).json({ error: 'Cannot claim combo.' });
         }
         
-        const comboIds = parseComboIds(dailyEvent.combo_ids);
         if (comboIds.length === 0) {
             return res.status(400).json({ error: 'No combo configured for today.' });
         }
@@ -377,9 +360,6 @@ app.get('/admin/api/dashboard-stats', isAdminAuthenticated, async (req, res) => 
 app.get('/admin/api/daily-events', isAdminAuthenticated, async (req, res) => {
     try {
         const event = await getDailyEvent(getTodayDate());
-        if (event) {
-            event.combo_ids = parseComboIds(event.combo_ids);
-        }
         res.json(event || { combo_ids: [], cipher_word: '' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch daily events' });
