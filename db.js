@@ -161,18 +161,28 @@ export const completeAndRewardSpecialTask = async (userId, taskId) => {
 };
 
 export const getAllPlayersForAdmin = async () => {
-    const query = `
-        SELECT 
-            u.id, 
-            u.name, 
-            u.language, 
-            COALESCE((p.data->>'referrals')::int, 0) as referrals,
-            COALESCE((p.data->>'balance')::bigint, 0) as balance,
-            COALESCE((p.data->>'stars')::int, 0) as stars
-        FROM users u
-        LEFT JOIN players p ON u.id = p.id
-        ORDER BY (p.data->>'balance')::bigint DESC NULLS LAST;
-    `;
-    const res = await executeQuery(query);
-    return res.rows;
+    // This function is rewritten to be more robust.
+    // Instead of a single complex JOIN, it fetches users and players separately and merges them in code.
+    // This avoids potential crashes on complex queries in some cloud environments.
+    const usersRes = await executeQuery('SELECT id, name, language FROM users');
+    const playersRes = await executeQuery('SELECT id, data FROM players');
+
+    const playersMap = new Map(playersRes.rows.map(p => [p.id, p.data]));
+
+    const allPlayers = usersRes.rows.map(user => {
+        const playerData = playersMap.get(user.id);
+        return {
+            id: user.id,
+            name: user.name || 'N/A',
+            language: user.language || 'en',
+            balance: playerData?.balance ?? 0,
+            stars: playerData?.stars ?? 0,
+            referrals: playerData?.referrals ?? 0
+        };
+    });
+
+    // Sort by balance descending
+    allPlayers.sort((a, b) => b.balance - a.balance);
+
+    return allPlayers;
 };
