@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -165,7 +166,6 @@ app.post('/api/create-invoice', async (req, res) => {
             title: task.name.en,
             description: task.description.en,
             payload: payload,
-            provider_token: '', // Leave empty for Stars
             currency: 'XTR',
             prices: [{ label: 'Unlock Task', amount: task.priceStars }]
         };
