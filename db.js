@@ -217,3 +217,9 @@ export const deletePlayer = async (userId) => {
         throw error;
     }
 };
+
+export const unlockPaidSpecialTask = async (userId, taskId, priceStars) => {
+    // Эта функция нужна только для совместимости, если вы используете Telegram Stars — она может быть пустой или просто возвращать null.
+    // Если вы не используете покупку за локальные звезды, а только через Telegram Invoice, можно сделать так:
+    return null;
+};
