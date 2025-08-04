@@ -211,9 +211,17 @@ app.get('/admin/api/config', isAdminAuthenticated, async (req, res) => {
 });
 
 app.post('/admin/api/config', isAdminAuthenticated, async (req, res) => {
-    const { config } = req.body;
-    await saveConfig(config);
-    res.status(200).json({ message: 'Configuration saved successfully.' });
+    try {
+        const newConfig = req.body.config;
+        if (!newConfig) {
+            return res.status(400).json({ error: 'Config data is missing in the request body.' });
+        }
+        await saveConfig(newConfig);
+        res.status(200).json({ message: 'Configuration saved successfully.' });
+    } catch (error) {
+        console.error("Failed to save config:", error);
+        res.status(500).json({ error: "Internal server error while saving configuration." });
+    }
 });
 
 app.post('/admin/api/translate', isAdminAuthenticated, async (req, res) => {
