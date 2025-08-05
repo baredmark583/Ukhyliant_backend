@@ -260,7 +260,7 @@ app.get('/api/leaderboard', async (req, res) => {
                 name: p.name,
                 profitPerHour: p.profitPerHour,
                 leagueName: league.name,
-                leagueIcon: league.iconString
+                leagueIconUrl: league.iconUrl
             };
         });
 
