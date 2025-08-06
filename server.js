@@ -1,5 +1,6 @@
 
 
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -7,7 +8,9 @@ import { fileURLToPath } from 'url';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import { GoogleGenAI } from '@google/genai';
+import connectPgSimple from 'connect-pg-simple';
 import { 
+    pool,
     initializeDb, 
     getConfig, 
     saveConfig, 
@@ -71,15 +74,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Set up session middleware
+// Set up session middleware with persistent storage
+const PgStore = connectPgSimple(session);
+const sessionStore = new PgStore({
+    pool: pool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true,
+});
+
 const sessionMiddleware = session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'default_secret_for_dev',
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false, // Don't create session until something stored
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        sameSite: 'lax'
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     }
 });
 
