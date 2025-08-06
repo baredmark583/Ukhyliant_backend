@@ -350,13 +350,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const addNewItem = (e) => {
         const { section } = e.target.dataset;
+
+        // Ensure the section array exists before trying to access it.
+        if (!localConfig[section] || !Array.isArray(localConfig[section])) {
+            localConfig[section] = [];
+        }
+
         const newItem = JSON.parse(JSON.stringify(localConfig[section][0] || {}));
         
-        // Create a default structure if the section is empty
+        // Create a default structure if the section was empty
         if (Object.keys(newItem).length === 0) {
             newItem.id = `${section.slice(0, 4)}_${Date.now()}`;
             newItem.name = { en: '', ua: '', ru: '' };
-            if (section === 'tasks' || section === 'specialTasks') {
+            if (section === 'upgrades') {
+                newItem.price = 0;
+                newItem.profitPerHour = 0;
+                newItem.category = 'Documents';
+                newItem.iconUrl = '';
+            } else if (section === 'boosts') {
+                newItem.description = { en: '', ua: '', ru: '' };
+                newItem.costCoins = 0;
+                newItem.iconUrl = '';
+            } else if (section === 'tasks' || section === 'specialTasks') {
                 newItem.type = 'taps';
                 newItem.reward = { type: 'coins', amount: 0 };
                 newItem.imageUrl = '';
@@ -364,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 newItem.requiredTaps = 0;
                 newItem.secretCode = '';
             }
+
              if (section === 'specialTasks') {
                  newItem.description = { en: '', ua: '', ru: '' };
                  newItem.priceStars = 0;
@@ -378,6 +394,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (typeof newItem[key] === 'number') newItem[key] = 0;
                 else if (typeof newItem[key] === 'string') newItem[key] = '';
             });
+        }
+        
+        // Ensure some boolean values are set correctly on new/cloned items
+        if (section === 'specialTasks') {
+            newItem.isOneTime = true;
         }
 
         localConfig[section].push(newItem);
