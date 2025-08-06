@@ -1,15 +1,23 @@
+
 document.addEventListener('DOMContentLoaded', () => {
+    // --- STATE ---
     let localConfig = {};
     let allPlayers = [];
     let dashboardStats = {};
+    let playerLocations = [];
     let dailyEvent = { combo_ids: [], cipher_word: '', combo_reward: 5000000, cipher_reward: 1000000 };
     let activeTab = 'dashboard';
+    let currentLang = localStorage.getItem('adminLang') || 'ru';
 
+    // --- DOM ELEMENTS ---
     const tabContainer = document.getElementById('tab-content-container');
-    const tabButtons = document.querySelectorAll('.tab-button');
     const tabTitle = document.getElementById('tab-title');
     const saveMainButton = document.getElementById('save-main-button');
+    
+    // --- TRANSLATION FUNCTION ---
+    const t = (key) => LOCALES[currentLang]?.[key] || LOCALES['en'][key];
 
+    // --- UTILS ---
     const escapeHtml = (unsafe) => {
         if (typeof unsafe !== 'string') return unsafe;
         return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -17,178 +25,259 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatNumber = (num) => {
         if (num === null || num === undefined) return '0';
-        return Number(num).toLocaleString('ru-RU');
+        return Number(num).toLocaleString(currentLang === 'ru' ? 'ru-RU' : 'en-US');
+    };
+    
+    const applyTranslations = () => {
+        document.querySelectorAll('[data-translate]').forEach(el => {
+            const key = el.dataset.translate;
+            el.textContent = t(key);
+        });
+        document.querySelector('html').setAttribute('lang', currentLang);
+        const flag = document.getElementById('lang-switcher-flag');
+        if (flag) {
+            flag.className = `flag flag-country-${currentLang === 'en' ? 'us' : currentLang}`;
+        }
+    };
+
+    const showLoading = (message = 'Loading...') => {
+        tabContainer.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 50vh;">
+                <div>
+                    <div class="spinner-border" role="status"></div>
+                    <p class="mt-2 text-muted">${message}</p>
+                </div>
+            </div>`;
     };
 
     const render = () => {
-        tabContainer.innerHTML = '';
-        tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
-        
-        const currentButton = document.querySelector(`.tab-button[data-tab="${activeTab}"]`);
-        tabTitle.textContent = currentButton ? currentButton.textContent : 'Дашборд';
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            const isActive = btn.dataset.tab === activeTab;
+            btn.classList.toggle('active', isActive);
+            // Handle dropdown parents
+            const dropdownToggle = btn.closest('.dropdown-menu')?.previousElementSibling;
+            if(dropdownToggle) {
+                 const parentNavItem = dropdownToggle.closest('.nav-item');
+                 if(parentNavItem.querySelector('.tab-button.active')){
+                    parentNavItem.classList.add('active');
+                    dropdownToggle.classList.add('show');
+                    btn.closest('.dropdown-menu').classList.add('show');
+                 } else {
+                    parentNavItem.classList.remove('active');
+                 }
+            }
+        });
 
-        saveMainButton.style.display = ['dashboard', 'players'].includes(activeTab) ? 'none' : 'inline-block';
+        tabTitle.dataset.translate = activeTab;
+
+        saveMainButton.classList.toggle('d-none', ['dashboard', 'players'].includes(activeTab));
 
         switch (activeTab) {
             case 'dashboard': renderDashboard(); break;
             case 'players': renderPlayersTab(); break;
             case 'dailyEvents': renderDailyEvents(); break;
-            case 'special': renderConfigTable('specialTasks'); break;
+            case 'specialTasks': renderConfigTable('specialTasks'); break;
             case 'upgrades': renderConfigTable('upgrades'); break;
             case 'tasks': renderConfigTable('tasks'); break;
             case 'boosts': renderConfigTable('boosts'); break;
+            default: renderDashboard();
         }
+        applyTranslations();
         addEventListeners();
     };
     
     // --- RENDER FUNCTIONS ---
     const renderDashboard = () => {
         tabContainer.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="bg-gray-700/50 p-6 rounded-lg shadow-lg">
-                    <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider">Всего игроков</h3>
-                    <p class="text-4xl font-bold mt-2 text-white">${formatNumber(dashboardStats.totalPlayers)}</p>
+            <div class="row row-deck row-cards">
+                <!-- Stats Cards -->
+                <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="total_players"></div></div><div class="h1 mb-3">${formatNumber(dashboardStats.totalPlayers)}</div></div></div></div>
+                <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="new_players_24h"></div></div><div class="h1 mb-3">${formatNumber(dashboardStats.newPlayersToday)}</div></div></div></div>
+                <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="online_now"></div></div><div class="h1 mb-3">${formatNumber(dashboardStats.onlineNow)}</div></div></div></div>
+                <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="total_coins_in_game"></div></div><div class="h1 mb-3 text-green">${formatNumber(dashboardStats.totalCoins)}</div></div></div></div>
+                <!-- Map -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title" data-translate="player_map"></h3>
+                            <div id="map-world" style="height: 350px;"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="bg-gray-700/50 p-6 rounded-lg shadow-lg">
-                    <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider">Новых за 24ч</h3>
-                    <p class="text-4xl font-bold mt-2 text-white">${formatNumber(dashboardStats.newPlayersToday)}</p>
-                </div>
-                <div class="bg-gray-700/50 p-6 rounded-lg shadow-lg col-span-1 md:col-span-2">
-                    <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider">Всего монет в игре</h3>
-                    <p class="text-4xl font-bold mt-2 text-green-400">${formatNumber(dashboardStats.totalCoins)}</p>
-                </div>
-            </div>
-            <div class="mt-8">
-                <h3 class="text-xl font-bold mb-4 text-white">Топ-5 Популярных Улучшений</h3>
-                <div class="bg-gray-700/50 rounded-lg p-4">
-                    <ul class="space-y-3">
-                        ${(dashboardStats.popularUpgrades || []).map(upg => {
-                            const upgradeDetails = localConfig.upgrades?.find(u => u.id === upg.upgrade_id);
-                            const iconHtml = upgradeDetails?.iconUrl ? `<img src="${upgradeDetails.iconUrl}" alt="" class="w-6 h-6 inline-block mr-2" />` : '❓';
-                            return `<li class="flex justify-between items-center text-gray-300 hover:bg-gray-600/50 p-2 rounded-md transition-colors">
-                                <span class="flex items-center">${iconHtml} ${upgradeDetails?.name?.ru || upgradeDetails?.name?.en || upg.upgrade_id}</span>
-                                <span class="font-bold text-white">${formatNumber(upg.purchase_count)} покупок</span>
-                            </li>`;
-                        }).join('') || '<p class="text-gray-400">Нет данных</p>'}
-                    </ul>
+                <!-- Top Upgrades -->
+                <div class="col-lg-4">
+                     <div class="card" style="height: calc(350px + 2rem)">
+                        <div class="card-header"><h3 class="card-title" data-translate="top_5_upgrades"></h3></div>
+                        <div class="list-group list-group-flush list-group-hoverable overflow-auto">
+                           ${(dashboardStats.popularUpgrades && dashboardStats.popularUpgrades.length > 0) ? dashboardStats.popularUpgrades.map(upg => {
+                                const upgradeDetails = localConfig.upgrades?.find(u => u.id === upg.upgrade_id);
+                                const iconHtml = upgradeDetails?.iconUrl ? `<span class="avatar me-2" style="background-image: url(${upgradeDetails.iconUrl})"></span>` : `<span class="avatar me-2">❓</span>`;
+                                return `<div class="list-group-item">
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">${iconHtml}</div>
+                                        <div class="col text-truncate">
+                                            <div class="text-reset d-block">${upgradeDetails?.name?.[currentLang] || upgradeDetails?.name?.en || upg.upgrade_id}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <div class="text-secondary">${formatNumber(upg.purchase_count)} <span data-translate="purchases"></span></div>
+                                        </div>
+                                    </div>
+                                </div>`;
+                           }).join('') : `<div class="p-4 text-center text-secondary" data-translate="no_data"></div>`}
+                        </div>
+                    </div>
                 </div>
             </div>`;
+
+        // Initialize jVectorMap
+        const mapData = playerLocations.reduce((acc, loc) => {
+            acc[loc.country] = loc.player_count;
+            return acc;
+        }, {});
+        $('#map-world').vectorMap({
+            map: 'world_mill',
+            backgroundColor: 'transparent',
+            regionStyle: {
+                initial: { fill: '#3A445D' },
+                hover: { fill: '#2A3347' }
+            },
+            series: {
+                regions: [{
+                    values: mapData,
+                    scale: ['#C8EEFF', '#0071A4'],
+                    normalizeFunction: 'polynomial'
+                }]
+            },
+             onRegionTipShow: function(e, el, code){
+                el.html(el.html() + ': ' + (mapData[code] || 0) + ' ' + t('players'));
+            }
+        });
     };
 
     const renderDailyEvents = () => {
         tabContainer.innerHTML = `
-            <div>
-                <h2 class="text-2xl font-bold mb-6 text-white">Настройка событий дня</h2>
-                <div class="space-y-8">
-                    <div class="bg-gray-700/50 p-6 rounded-lg shadow-lg">
-                        <h3 class="text-xl font-semibold mb-3 text-white">Ежедневное Комбо</h3>
-                        <p class="text-sm text-gray-400 mb-4">Выберите 3 уникальных улучшения для комбо. Игроки, купившие все три, получат награду.</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            ${[0, 1, 2].map(i => `
-                                <select data-event="combo" data-index="${i}" class="w-full bg-gray-600 p-3 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
-                                    <option value="">-- Выберите карту ${i + 1} --</option>
-                                    ${localConfig.upgrades?.map(u => `<option value="${u.id}" ${dailyEvent.combo_ids?.[i] === u.id ? 'selected' : ''}>${u.name.ru || u.name.en}</option>`).join('')}
+         <div class="card">
+            <div class="card-header"><h3 class="card-title" data-translate="daily_events_setup"></h3></div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <h4 data-translate="daily_combo"></h4>
+                        <p class="text-secondary" data-translate="select_3_cards_for_combo"></p>
+                        <div class="row g-2 mb-3">
+                           ${[0, 1, 2].map(i => `
+                            <div class="col-md-4">
+                                <select data-event="combo" data-index="${i}" class="form-select">
+                                    <option value="">${t('select_card')} ${i + 1}</option>
+                                    ${(localConfig.upgrades || []).map(u => `<option value="${u.id}" ${dailyEvent.combo_ids?.[i] === u.id ? 'selected' : ''}>${u.name[currentLang] || u.name.en}</option>`).join('')}
                                 </select>
-                            `).join('')}
+                            </div>
+                           `).join('')}
                         </div>
-                         <div>
-                            <label for="combo-reward-input" class="block text-sm font-medium text-gray-300 mb-1">Награда за Комбо</label>
-                            <input type="number" id="combo-reward-input" value="${dailyEvent.combo_reward || '5000000'}" class="w-full max-w-xs bg-gray-600 p-3 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="5000000">
+                        <div class="mb-3">
+                            <label class="form-label" data-translate="combo_reward"></label>
+                            <input type="number" id="combo-reward-input" value="${dailyEvent.combo_reward || '5000000'}" class="form-control">
                         </div>
                     </div>
-                    <div class="bg-gray-700/50 p-6 rounded-lg shadow-lg">
-                        <h3 class="text-xl font-semibold mb-3 text-white">Ежедневный Шифр</h3>
-                        <p class="text-sm text-gray-400 mb-4">Введите слово для шифра Морзе (только латинские буквы, без пробелов, в верхнем регистре).</p>
-                        <div class="mb-4">
-                            <label for="cipher-word-input" class="block text-sm font-medium text-gray-300 mb-1">Слово для шифра</label>
-                            <input type="text" id="cipher-word-input" value="${dailyEvent.cipher_word || ''}" class="w-full max-w-sm bg-gray-600 p-3 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-widest" placeholder="например, BTC">
+                     <div class="col-lg-6">
+                        <h4 data-translate="daily_cipher"></h4>
+                        <p class="text-secondary" data-translate="enter_cipher_word"></p>
+                        <div class="mb-3">
+                            <label class="form-label" data-translate="cipher_word"></label>
+                            <input type="text" id="cipher-word-input" value="${dailyEvent.cipher_word || ''}" class="form-control" placeholder="${t('example_btc')}">
                         </div>
-                        <div>
-                            <label for="cipher-reward-input" class="block text-sm font-medium text-gray-300 mb-1">Награда за Шифр</label>
-                            <input type="number" id="cipher-reward-input" value="${dailyEvent.cipher_reward || '1000000'}" class="w-full max-w-xs bg-gray-600 p-3 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="1000000">
+                         <div class="mb-3">
+                            <label class="form-label" data-translate="cipher_reward"></label>
+                            <input type="number" id="cipher-reward-input" value="${dailyEvent.cipher_reward || '1000000'}" class="form-control">
                         </div>
                     </div>
                 </div>
-            </div>`;
+            </div>
+         </div>
+        `;
     };
 
     const renderPlayersTab = (filteredPlayers) => {
         const playersToRender = filteredPlayers || allPlayers;
         tabContainer.innerHTML = `
-            <div class="mb-4">
-                <input type="text" id="player-search" class="w-full max-w-lg bg-gray-700 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Поиск по ID или имени...">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" data-translate="players"></h3>
+                <div class="ms-auto text-secondary">
+                    <input type="text" id="player-search" class="form-control form-control-sm" placeholder="${t('search_by_id_name')}">
+                </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full bg-gray-700/50 rounded-lg">
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap datatable">
                     <thead>
-                        <tr class="text-left text-xs text-gray-400 uppercase tracking-wider">
-                            <th class="p-3">ID</th>
-                            <th class="p-3">Имя</th>
-                            <th class="p-3">Баланс</th>
-                            <th class="p-3">Рефералы</th>
-                            <th class="p-3">Язык</th>
-                            <th class="p-3">Действия</th>
+                        <tr>
+                            <th data-translate="id"></th>
+                            <th data-translate="name"></th>
+                            <th data-translate="balance"></th>
+                            <th data-translate="profit_ph"></th>
+                            <th data-translate="stars_spent"></th>
+                            <th data-translate="referrals"></th>
+                            <th data-translate="language"></th>
+                            <th data-translate="actions"></th>
                         </tr>
                     </thead>
-                    <tbody class="text-sm">
+                    <tbody id="players-table-body">
                         ${playersToRender.map(p => `
-                            <tr class="border-t border-gray-700 hover:bg-gray-600/50 transition-colors">
-                                <td class="p-3 font-mono">${escapeHtml(p.id)}</td>
-                                <td class="p-3 text-white">${escapeHtml(p.name)}</td>
-                                <td class="p-3 font-mono">${formatNumber(p.balance)}</td>
-                                <td class="p-3 font-mono">${formatNumber(p.referrals)}</td>
-                                <td class="p-3 uppercase">${escapeHtml(p.language)}</td>
-                                <td class="p-3 whitespace-nowrap space-x-2">
-                                    <button data-id="${p.id}" class="reset-daily-btn text-blue-400 hover:text-blue-300 text-xs font-bold px-2 py-1 bg-blue-900/50 rounded-md">Сброс дня</button>
-                                    <button data-id="${p.id}" class="delete-player-btn text-red-500 hover:text-red-400 text-xs font-bold px-2 py-1 bg-red-900/50 rounded-md">Удалить</button>
+                            <tr data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name?.toLowerCase())}">
+                                <td>${escapeHtml(p.id)}</td>
+                                <td>${escapeHtml(p.name)}</td>
+                                <td>${formatNumber(p.balance)}</td>
+                                <td>+${formatNumber(p.profitPerHour)}</td>
+                                <td>${formatNumber(p.starsSpent)}</td>
+                                <td>${formatNumber(p.referrals)}</td>
+                                <td><span class="badge bg-secondary-lt">${escapeHtml(p.language)}</span></td>
+                                <td class="text-end">
+                                    <button data-id="${p.id}" class="btn btn-sm btn-ghost-primary reset-daily-btn" data-translate="reset_daily"></button>
+                                    <button data-id="${p.id}" class="btn btn-sm btn-ghost-danger delete-player-btn" data-translate="delete"></button>
                                 </td>
-                            </tr>
-                        `).join('')}
+                            </tr>`).join('')}
                     </tbody>
                 </table>
-            </div>
-        `;
-    };
-    
-    const createLocalizedInputGroup = (section, index, field, value) => {
-        return `
-        <div class="col-span-full md:col-span-2">
-            <div class="relative">
-                <div class="absolute -top-2 left-2 bg-gray-700 px-1 text-xs text-gray-400">${field}</div>
-                <div class="grid grid-cols-4 gap-2 border border-gray-600 rounded-lg p-2 pt-4">
-                    <input type="text" data-section="${section}" data-index="${index}" data-lang="en" data-field="${field}" value="${escapeHtml(value.en)}" class="col-span-1 bg-gray-600 p-1 rounded placeholder-gray-500" placeholder="EN">
-                    <input type="text" data-section="${section}" data-index="${index}" data-lang="ua" data-field="${field}" value="${escapeHtml(value.ua)}" class="col-span-1 bg-gray-600 p-1 rounded placeholder-gray-500" placeholder="UA">
-                    <input type="text" data-section="${section}" data-index="${index}" data-lang="ru" data-field="${field}" value="${escapeHtml(value.ru)}" class="col-span-1 bg-gray-600 p-1 rounded placeholder-gray-500" placeholder="RU">
-                    <button class="translate-btn col-span-1 bg-blue-600 hover:bg-blue-500 rounded text-xs" data-section="${section}" data-index="${index}" data-field="${field}">🈂️ AI</button>
-                </div>
             </div>
         </div>
         `;
     };
+    
+    // -- CONFIG TABLE RENDERERS --
+    const createLocalizedInputGroup = (section, index, field, value) => `
+        <div class="col-md-6">
+            <label class="form-label" data-translate="${field}"></label>
+            <div class="input-group">
+                <input type="text" class="form-control" data-section="${section}" data-index="${index}" data-lang="en" data-field="${field}" value="${escapeHtml(value.en)}" placeholder="EN">
+                <input type="text" class="form-control" data-section="${section}" data-index="${index}" data-lang="ru" data-field="${field}" value="${escapeHtml(value.ru)}" placeholder="RU">
+                <button class="btn translate-btn" type="button" data-section="${section}" data-index="${index}" data-field="${field}">AI</button>
+            </div>
+        </div>`;
 
-    const createInput = (section, index, field, type = 'text', hidden = false, placeholder = '') => {
-        const item = localConfig[section][index];
-        const value = item ? (item[field] ?? '') : '';
-        return `<div class="col-span-1 ${hidden ? 'hidden' : ''}" id="field-container-${section}-${index}-${field}"><label class="block text-xs text-gray-400 mb-1 capitalize">${field.replace(/([A-Z])/g, ' $1')}</label><input type="${type}" data-section="${section}" data-index="${index}" data-field="${field}" value="${escapeHtml(value)}" class="w-full bg-gray-600 p-2 rounded" placeholder="${placeholder}"></div>`;
-    };
+    const createInput = (section, index, field, type = 'text', hidden = false, placeholder = '') => `
+        <div class="col-md-3 ${hidden ? 'd-none' : ''}" id="field-container-${section}-${index}-${field}">
+            <label class="form-label" data-translate="${field}"></label>
+            <input type="${type}" data-section="${section}" data-index="${index}" data-field="${field}" value="${escapeHtml(localConfig[section][index]?.[field] ?? '')}" class="form-control" placeholder="${placeholder}">
+        </div>`;
 
-    const createSelect = (section, index, field, options, hidden = false) => {
-         const item = localConfig[section][index];
-         const value = item ? item[field] : '';
-         return `<div class="col-span-1 ${hidden ? 'hidden' : ''}" id="field-container-${section}-${index}-${field}"><label class="block text-xs text-gray-400 mb-1 capitalize">${field}</label><select data-section="${section}" data-index="${index}" data-field="${field}" class="w-full bg-gray-600 p-2 rounded">${options.map(o => `<option value="${o}" ${o === value ? 'selected' : ''}>${o}</option>`).join('')}</select></div>`;
-    };
+    const createSelect = (section, index, field, options, hidden = false) => `
+         <div class="col-md-3 ${hidden ? 'd-none' : ''}" id="field-container-${section}-${index}-${field}">
+            <label class="form-label" data-translate="${field}"></label>
+            <select data-section="${section}" data-index="${index}" data-field="${field}" class="form-select">
+                ${options.map(o => `<option value="${o}" ${o === localConfig[section][index]?.[field] ? 'selected' : ''}>${o}</option>`).join('')}
+            </select>
+         </div>`;
 
     const createRewardInput = (section, index, reward) => {
         const safeReward = reward || { type: 'coins', amount: 0 };
         return `
-        <div class="col-span-2">
-            <label class="block text-xs text-gray-400 mb-1">Награда</label>
-            <div class="flex items-center space-x-2">
-                <select data-section="${section}" data-index="${index}" data-field="reward.type" class="w-1/3 bg-gray-600 p-2 rounded">
-                    <option value="coins" ${safeReward.type === 'coins' ? 'selected' : ''}>Монеты 🪙</option>
-                    <option value="profit" ${safeReward.type === 'profit' ? 'selected' : ''}>Прибыль ⚡</option>
+        <div class="col-md-3">
+            <label class="form-label" data-translate="reward"></label>
+            <div class="input-group">
+                <select data-section="${section}" data-index="${index}" data-field="reward.type" class="form-select" style="flex: 2;">
+                    <option value="coins" ${safeReward.type === 'coins' ? 'selected' : ''}>${t('reward_type_coins')}</option>
+                    <option value="profit" ${safeReward.type === 'profit' ? 'selected' : ''}>${t('reward_type_profit')}</option>
                 </select>
-                <input type="number" data-section="${section}" data-index="${index}" data-field="reward.amount" value="${safeReward.amount}" class="w-2/3 bg-gray-600 p-2 rounded">
+                <input type="number" data-section="${section}" data-index="${index}" data-field="reward.amount" value="${safeReward.amount}" class="form-control" style="flex: 3;">
             </div>
         </div>`;
     };
@@ -196,17 +285,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderConfigTable = (sectionKey) => {
         const items = localConfig[sectionKey] || [];
         const isTask = sectionKey === 'tasks' || sectionKey === 'specialTasks';
-
         let tableHTML = `<div class="space-y-4">
             ${items.map((item, index) => {
-                let fieldsHTML = '<div class="grid grid-cols-1 md:grid-cols-4 gap-4">';
-                
-                // Common fields for all types
-                fieldsHTML += `<div class="col-span-1"><label class="block text-xs text-gray-400 mb-1">ID</label><input type="text" value="${escapeHtml(item.id)}" class="w-full bg-gray-500 p-2 rounded" readonly></div>`;
+                let fieldsHTML = '<div class="row g-3">';
+                fieldsHTML += `<div class="col-md-3"><label class="form-label" data-translate="id"></label><input type="text" value="${escapeHtml(item.id)}" class="form-control" readonly></div>`;
                 if (item.name) fieldsHTML += createLocalizedInputGroup(sectionKey, index, 'name', item.name);
                 if (item.description) fieldsHTML += createLocalizedInputGroup(sectionKey, index, 'description', item.description);
-
-                // Specific fields based on section
                 if (sectionKey === 'upgrades') {
                     fieldsHTML += createInput(sectionKey, index, 'price', 'number');
                     fieldsHTML += createInput(sectionKey, index, 'profitPerHour', 'number');
@@ -227,12 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
                          fieldsHTML += createInput(sectionKey, index, 'priceStars', 'number');
                     }
                 }
-
-                fieldsHTML += `<div class="col-span-full flex justify-end"><button data-section="${sectionKey}" data-index="${index}" class="delete-btn bg-red-800/80 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Удалить</button></div>`;
+                fieldsHTML += `<div class="col-12 text-end"><button data-section="${sectionKey}" data-index="${index}" class="btn btn-ghost-danger delete-btn" data-translate="delete"></button></div>`;
                 fieldsHTML += '</div>';
-                return `<div class="bg-gray-700/50 p-4 rounded-lg">${fieldsHTML}</div>`;
+                return `<div class="card"><div class="card-body">${fieldsHTML}</div></div>`;
             }).join('')}
-            <button class="add-new-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg" data-section="${sectionKey}">Добавить</button>
+            <button class="btn btn-primary add-new-btn" data-section="${sectionKey}" data-translate="add_new"></button>
             </div>`;
         tabContainer.innerHTML = tableHTML;
     };
@@ -241,173 +324,113 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleFieldChange = (e) => {
         const { section, index, field } = e.target.dataset;
         if (!section || !index || !field) return;
-
         const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
-        
-        // Handle nested fields like reward.type
         if (field.includes('.')) {
             const [parent, child] = field.split('.');
-            if (!localConfig[section][index][parent]) {
-                localConfig[section][index][parent] = {}; // Ensure parent object exists
-            }
+            if (!localConfig[section][index][parent]) localConfig[section][index][parent] = {};
             localConfig[section][index][parent][child] = value;
         } else if (e.target.dataset.lang) {
             localConfig[section][index][field][e.target.dataset.lang] = value;
         } else {
             localConfig[section][index][field] = value;
         }
-
-        // Dynamic UI update for task types
         if (field === 'type' && (section === 'tasks' || section === 'specialTasks')) {
-            const item = localConfig[section][index];
-            const type = item.type;
-            document.getElementById(`field-container-${section}-${index}-url`).classList.toggle('hidden', type === 'taps');
-            document.getElementById(`field-container-${section}-${index}-requiredTaps`).classList.toggle('hidden', type !== 'taps');
-            document.getElementById(`field-container-${section}-${index}-secretCode`).classList.toggle('hidden', type !== 'video_code');
+            const type = localConfig[section][index].type;
+            document.getElementById(`field-container-${section}-${index}-url`).classList.toggle('d-none', type === 'taps');
+            document.getElementById(`field-container-${section}-${index}-requiredTaps`).classList.toggle('d-none', type !== 'taps');
+            document.getElementById(`field-container-${section}-${index}-secretCode`).classList.toggle('d-none', type !== 'video_code');
         }
     };
     
     const handleTranslate = async (e) => {
-        const button = e.target;
+        const button = e.target.closest('button');
         const { section, index, field } = button.dataset;
-        const group = button.closest('.grid');
-        const enInput = group.querySelector(`[data-lang="en"]`);
-        const uaInput = group.querySelector(`[data-lang="ua"]`);
-        const ruInput = group.querySelector(`[data-lang="ru"]`);
-        const sourceInput = ruInput.value ? ruInput : (uaInput.value ? uaInput : enInput);
-        if (!sourceInput.value) {
-            alert('Введите текст хотя бы на одном языке для перевода.');
-            return;
-        }
-        button.disabled = true; button.textContent = '...';
+        const group = button.closest('.input-group');
+        const sourceInput = group.querySelector(`[data-lang="ru"]`) || group.querySelector(`[data-lang="en"]`);
+        if (!sourceInput.value) { alert(t('enter_text_to_translate')); return; }
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
         try {
-            for (const targetInput of [enInput, uaInput, ruInput]) {
-                if (targetInput !== sourceInput && !targetInput.value) {
-                     const fromLang = sourceInput.dataset.lang;
-                     const toLang = targetInput.dataset.lang;
-                     const response = await fetch('/admin/api/translate', {
+            for (const lang of ['en', 'ru']) {
+                if(lang !== sourceInput.dataset.lang) {
+                    const targetInput = group.querySelector(`[data-lang="${lang}"]`);
+                    const response = await fetch('/admin/api/translate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: sourceInput.value, from: fromLang, to: toLang }),
-                     });
-                     const data = await response.json();
-                     if (response.ok) {
+                        body: JSON.stringify({ text: sourceInput.value, from: sourceInput.dataset.lang, to: lang }),
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
                         targetInput.value = data.translatedText;
-                        localConfig[section][index][field][toLang] = data.translatedText;
-                     } else {
-                        throw new Error(data.error || 'Ошибка перевода');
-                     }
+                        localConfig[section][index][field][lang] = data.translatedText;
+                    } else throw new Error(data.error || t('translation_error'));
                 }
             }
-        } catch(err) {
-            alert(err.message);
-        } finally {
-            button.disabled = false; button.textContent = '🈂️ AI';
-        }
+        } catch(err) { alert(err.message); } 
+        finally { button.disabled = false; button.innerHTML = originalText; }
     };
     
     const saveChanges = async () => {
         saveMainButton.disabled = true;
-        saveMainButton.textContent = 'Сохранение...';
+        saveMainButton.querySelector('span').textContent = t('saving');
         try {
             if (activeTab === 'dailyEvents') {
                 const comboSelects = document.querySelectorAll('[data-event="combo"]');
                 const comboIds = Array.from(comboSelects).map(sel => sel.value).filter(Boolean);
-                const cipherWord = document.getElementById('cipher-word-input').value.toUpperCase().trim();
-                const comboReward = document.getElementById('combo-reward-input').value;
-                const cipherReward = document.getElementById('cipher-reward-input').value;
-
                 const uniqueComboIds = [...new Set(comboIds)];
                 if (comboIds.length > 0 && uniqueComboIds.length !== 3) {
-                    alert('Для комбо необходимо выбрать ровно 3 УНИКАЛЬНЫХ карты.');
-                    return;
+                    alert(t('error_3_unique_cards')); return;
                 }
-                
                 await fetch('/admin/api/daily-events', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ comboIds: uniqueComboIds, cipherWord, comboReward, cipherReward }),
+                    body: JSON.stringify({ 
+                        comboIds: uniqueComboIds, 
+                        cipherWord: document.getElementById('cipher-word-input').value.toUpperCase().trim(),
+                        comboReward: document.getElementById('combo-reward-input').value,
+                        cipherReward: document.getElementById('cipher-reward-input').value,
+                    }),
                 });
             }
-
             const configResponse = await fetch('/admin/api/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ config: localConfig }),
             });
             if (!configResponse.ok) throw new Error('Failed to save config');
-            
-            alert('Конфигурация успешно сохранена!');
-            
+            alert(t('save_all_changes') + '!');
         } catch (error) {
             console.error(error);
-            alert('Ошибка сохранения.');
+            alert('Error saving data.');
         } finally {
             saveMainButton.disabled = false;
-            saveMainButton.textContent = 'Сохранить все изменения';
+            saveMainButton.querySelector('span').textContent = t('save_all_changes');
         }
     };
     
     const addNewItem = (e) => {
         const { section } = e.target.dataset;
-
-        // Ensure the section array exists before trying to access it.
-        if (!localConfig[section] || !Array.isArray(localConfig[section])) {
-            localConfig[section] = [];
+        if (!localConfig[section]) localConfig[section] = [];
+        const newItem = {
+            id: `${section.slice(0, 4)}_${Date.now()}`,
+            name: { en: '', ru: '' },
+        };
+        if (section === 'upgrades') Object.assign(newItem, { price: 0, profitPerHour: 0, category: 'Documents', iconUrl: '' });
+        else if (section === 'boosts') Object.assign(newItem, { description: { en: '', ru: '' }, costCoins: 0, iconUrl: '' });
+        else if (section === 'tasks' || section === 'specialTasks') {
+            Object.assign(newItem, { type: 'taps', reward: { type: 'coins', amount: 0 }, imageUrl: '', url: '', requiredTaps: 0, secretCode: '' });
         }
-
-        const newItem = JSON.parse(JSON.stringify(localConfig[section][0] || {}));
-        
-        // Create a default structure if the section was empty
-        if (Object.keys(newItem).length === 0) {
-            newItem.id = `${section.slice(0, 4)}_${Date.now()}`;
-            newItem.name = { en: '', ua: '', ru: '' };
-            if (section === 'upgrades') {
-                newItem.price = 0;
-                newItem.profitPerHour = 0;
-                newItem.category = 'Documents';
-                newItem.iconUrl = '';
-            } else if (section === 'boosts') {
-                newItem.description = { en: '', ua: '', ru: '' };
-                newItem.costCoins = 0;
-                newItem.iconUrl = '';
-            } else if (section === 'tasks' || section === 'specialTasks') {
-                newItem.type = 'taps';
-                newItem.reward = { type: 'coins', amount: 0 };
-                newItem.imageUrl = '';
-                newItem.url = '';
-                newItem.requiredTaps = 0;
-                newItem.secretCode = '';
-            }
-
-             if (section === 'specialTasks') {
-                 newItem.description = { en: '', ua: '', ru: '' };
-                 newItem.priceStars = 0;
-                 newItem.isOneTime = true;
-             }
-        } else {
-            Object.keys(newItem).forEach(key => {
-                if (key === 'id') newItem[key] = `${section.slice(0, 4)}_${Date.now()}`;
-                else if (key === 'reward') newItem[key] = { type: 'coins', amount: 0 };
-                else if (typeof newItem[key] === 'object' && newItem[key] !== null && !Array.isArray(newItem[key])) {
-                    Object.keys(newItem[key]).forEach(subKey => newItem[key][subKey] = '');
-                } else if (typeof newItem[key] === 'number') newItem[key] = 0;
-                else if (typeof newItem[key] === 'string') newItem[key] = '';
-            });
-        }
-        
-        // Ensure some boolean values are set correctly on new/cloned items
         if (section === 'specialTasks') {
-            newItem.isOneTime = true;
+            Object.assign(newItem, { description: { en: '', ru: '' }, priceStars: 0, isOneTime: true });
         }
-
         localConfig[section].push(newItem);
         render();
     };
     
     const deleteItem = (e) => {
-        const { section, index } = e.target.dataset;
-        if (confirm('Вы уверены, что хотите удалить этот элемент?')) {
+        const { section, index } = e.target.closest('button').dataset;
+        if (confirm(t('confirm_delete'))) {
             localConfig[section].splice(index, 1);
             render();
         }
@@ -415,43 +438,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleDeletePlayer = async (e) => {
         const { id } = e.target.dataset;
-        if (confirm(`Вы уверены, что хотите удалить игрока с ID: ${id}? Это действие необратимо.`)) {
+        if (confirm(t('confirm_delete_player'))) {
             try {
                 const response = await fetch(`/admin/api/player/${id}`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Failed to delete player');
                 allPlayers = allPlayers.filter(p => p.id !== id);
                 render();
-            } catch (err) {
-                alert('Ошибка при удалении игрока.');
-            }
+            } catch (err) { alert('Error deleting player.'); }
         }
     };
 
     const handleResetDaily = async (e) => {
         const button = e.target;
         const { id } = button.dataset;
-        if (confirm(`Вы уверены, что хотите сбросить ежедневный прогресс (комбо/шифр) для игрока ${id}?`)) {
+        if (confirm(t('confirm_reset_daily'))) {
             button.disabled = true;
-            button.textContent = '...';
             try {
                 const response = await fetch(`/admin/api/player/${id}/reset-daily`, { method: 'POST' });
-                if (!response.ok) throw new Error('Failed to reset daily progress');
-                const data = await response.json();
-                alert(data.message || 'Прогресс сброшен!');
+                if (!response.ok) throw new Error(t('daily_progress_reset_error'));
+                alert(t('daily_progress_reset_success'));
             } catch (err) {
-                alert('Ошибка при сбросе прогресса.');
-                console.error(err);
+                alert(err.message);
             } finally {
                 button.disabled = false;
-                button.textContent = 'Сброс дня';
             }
         }
     };
 
     const handleSearch = (e) => {
-        const query = e.target.value.toLowerCase();
-        const filtered = allPlayers.filter(p => p.id.includes(query) || p.name.toLowerCase().includes(query));
-        renderPlayersTab(filtered);
+        const query = e.target.value.toLowerCase().trim();
+        const tableBody = document.getElementById('players-table-body');
+        if (!tableBody) return;
+        for (const row of tableBody.rows) {
+            const id = row.dataset.id || '';
+            const name = row.dataset.name || '';
+            row.style.display = (id.includes(query) || name.includes(query)) ? '' : 'none';
+        }
     };
 
     const addEventListeners = () => {
@@ -465,53 +487,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchInput) searchInput.addEventListener('input', handleSearch);
     };
 
-    const fetchData = async (url, errorMessage) => {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                 if (response.status === 401) { window.location.href = '/admin/login.html'; return null; }
-                 throw new Error(errorMessage || `HTTP error! status: ${response.status}`);
-            }
-            return await response.json();
-        } catch (error) {
-            console.error(error);
-            alert(errorMessage || 'Ошибка загрузки данных.');
-            throw error;
-        }
+    // --- INITIALIZATION ---
+    const fetchData = async (url) => {
+        const response = await fetch(url);
+        if (response.status === 401) { window.location.href = '/admin/login.html'; return null; }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
     };
     
     const init = async () => {
         try {
-            tabContainer.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-gray-500 animate-pulse">Загрузка конфигурации...</p></div>`;
-            localConfig = await fetchData('/admin/api/config', 'Не удалось загрузить конфигурацию.');
-            if (!localConfig) return;
-
-            tabContainer.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-gray-500 animate-pulse">Загрузка игроков...</p></div>`;
-            allPlayers = await fetchData('/admin/api/players', 'Не удалось загрузить список игроков.');
-            if (!allPlayers) return;
-
-            tabContainer.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-gray-500 animate-pulse">Загрузка статистики...</p></div>`;
-            dashboardStats = await fetchData('/admin/api/dashboard-stats', 'Не удалось загрузить статистику.');
-            if (!dashboardStats) return;
-
-            tabContainer.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-gray-500 animate-pulse">Загрузка событий дня...</p></div>`;
-            dailyEvent = await fetchData('/admin/api/daily-events', 'Не удалось загрузить события дня.');
+            [localConfig, allPlayers, dashboardStats, dailyEvent, playerLocations] = await Promise.all([
+                fetchData('/admin/api/config'),
+                fetchData('/admin/api/players'),
+                fetchData('/admin/api/dashboard-stats'),
+                fetchData('/admin/api/daily-events'),
+                fetchData('/admin/api/player-locations')
+            ]);
             
-            // Ensure dailyEvent has a default structure if it's null
             dailyEvent = dailyEvent || { combo_ids: [], cipher_word: '', combo_reward: 5000000, cipher_reward: 1000000 };
-            dailyEvent.combo_ids = dailyEvent.combo_ids || [];
-            dailyEvent.combo_reward = dailyEvent.combo_reward || 5000000;
-            dailyEvent.cipher_reward = dailyEvent.cipher_reward || 1000000;
             
+            const urlParams = new URLSearchParams(window.location.hash.substring(1));
+            activeTab = urlParams.get('tab') || 'dashboard';
+
             render();
         } catch (error) {
-            tabContainer.innerHTML = `<div class="bg-red-900/50 border border-red-700 p-4 rounded-lg"><p class="text-red-300 font-bold">Критическая ошибка загрузки.</p><p class="text-red-400 text-sm mt-2">${error.message}. Попробуйте обновить страницу.</p></div>`;
+            console.error(error);
+            tabContainer.innerHTML = `<div class="alert alert-danger" role="alert"><h4 class="alert-title">Critical Error</h4><div class="text-secondary">${error.message}</div></div>`;
         }
     };
     
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
             activeTab = button.dataset.tab;
+            window.location.hash = `tab=${activeTab}`;
+            render();
+        });
+    });
+
+     document.querySelectorAll('.lang-select-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentLang = button.dataset.lang;
+            localStorage.setItem('adminLang', currentLang);
             render();
         });
     });
