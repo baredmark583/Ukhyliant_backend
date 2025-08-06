@@ -158,16 +158,24 @@ app.post('/api/login', async (req, res) => {
         const userId = tgUser.id.toString();
         log('info', `Processing login for user ID: ${userId}`);
         
-        // --- Country Detection: IP First, Language as Fallback ---
-        const ip = req.ip;
-        const geo = geoip.lookup(ip);
-        let countryCode = geo ? geo.country : null;
-        log('info', `GeoIP lookup for IP '${ip}' for user ${userId} resolved to country: ${countryCode}`);
+        // --- Country Detection ---
+        // When hosted on services like Render, the direct `req.ip` might be an internal proxy IP.
+        // The 'x-forwarded-for' header contains the original client IP. We take the first IP from this list.
+        const forwardedIps = req.headers['x-forwarded-for'];
+        const clientIp = forwardedIps ? forwardedIps.split(',')[0].trim() : req.ip;
 
-        // If GeoIP fails, fall back to language code
+        log('info', `Attempting GeoIP lookup for user ${userId}. Header 'x-forwarded-for': '${forwardedIps}', req.ip: '${req.ip}'. Using IP: '${clientIp}'`);
+
+        const geo = geoip.lookup(clientIp);
+        let countryCode = geo ? geo.country : null;
+
+        log('info', `GeoIP lookup for IP '${clientIp}' for user ${userId} resolved to country: ${countryCode}`);
+
+        // If GeoIP fails (e.g., for localhost or undetectable IPs), fall back to language code.
+        // The user has Russian language, so this was causing the issue. This new IP logic should fix it.
         if (!countryCode) {
             const lang = tgUser.language_code?.toLowerCase();
-            log('info', `GeoIP failed or returned null. Falling back to language code '${lang}' for user ${userId}.`);
+            log('info', `GeoIP failed or returned null for IP '${clientIp}'. Falling back to language code '${lang}' for user ${userId}.`);
             if (lang === 'ua' || lang === 'uk') {
                 countryCode = 'UA';
             } else if (lang === 'ru') {
