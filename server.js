@@ -221,8 +221,14 @@ app.post('/api/login', async (req, res) => {
         }
 
         const finalConfig = { ...baseConfig, dailyEvent: clientDailyEvent };
+
+        // Sanitize config before sending to client to prevent crashes from data saved via admin panel
+        finalConfig.upgrades = finalConfig.upgrades || [];
+        finalConfig.tasks = finalConfig.tasks || [];
+        finalConfig.boosts = finalConfig.boosts || [];
+        finalConfig.specialTasks = finalConfig.specialTasks || [];
         
-        log('info', `Login successful for ${userId}. Sending config.`);
+        log('info', `Login successful for ${userId}. Sending sanitized config.`);
         res.json({ user: userWithRole, player, config: finalConfig });
 
     } catch (error) {
