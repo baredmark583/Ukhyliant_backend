@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -92,11 +93,18 @@ app.use('/admin', express.static(path.join(__dirname, 'public')));
 // --- AUTH MIDDLEWARE FOR ADMIN PANEL ---
 const isAdminAuthenticated = (req, res, next) => {
     if (req.session.isAdmin) {
-        next();
-    } else {
-        log('warn', `Unauthorized attempt to access admin area from IP: ${req.ip}`);
-        res.redirect('/admin/login.html');
+        return next();
     }
+    
+    log('warn', `Unauthorized attempt to access admin area from IP: ${req.ip}`);
+    
+    // For API requests, send a 401 Unauthorized status. This allows the client-side JS to handle it.
+    if (req.originalUrl.startsWith('/admin/api')) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // For page requests, redirect to the login page.
+    return res.redirect('/admin/login.html');
 };
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
