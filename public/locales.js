@@ -30,6 +30,7 @@ const LOCALES = {
         'confirm_reset_daily': 'Are you sure you want to reset daily progress (combo/cipher) for this player?',
         'daily_progress_reset_success': 'Daily progress reset!',
         'daily_progress_reset_error': 'Error resetting progress.',
+        'close': 'Close',
         // Dashboard
         'dashboard': 'Dashboard',
         'total_players': 'Total Players',
@@ -37,7 +38,8 @@ const LOCALES = {
         'online_now': 'Online Now',
         'total_coins_in_game': 'Total Coins in Game',
         'player_map': 'Player Map',
-        'top_5_upgrades': 'Top 5 Popular Upgrades',
+        'top_5_upgrades': 'Popular Upgrades',
+        'new_users_last_7_days': 'New Users (Last 7 Days)',
         'purchases': 'purchases',
         'no_data': 'No data available',
         // Players
@@ -49,6 +51,15 @@ const LOCALES = {
         'profit_ph': 'Profit/h',
         'stars_spent': 'Stars Spent',
         'reset_daily': 'Reset Daily',
+        'player_details': 'Player Details',
+        'update_balance': 'Update Balance',
+        'current_balance': 'Current Balance',
+        'bonus_amount': 'Bonus Amount (can be negative)',
+        'add_bonus': 'Add Bonus',
+        'player_upgrades': 'Player Upgrades',
+        'level': 'Level',
+        'balance_updated': 'Balance updated successfully!',
+        'error_updating_balance': 'Error updating balance.',
         // Daily Events
         'daily_events_setup': 'Daily Events Setup',
         'daily_combo': 'Daily Combo',
@@ -73,7 +84,11 @@ const LOCALES = {
         'price_in_stars': 'Price in Stars',
         'translate_ai': 'Translate',
         'enter_text_to_translate': 'Please enter text in at least one language to translate.',
-        'translation_error': 'Translation error'
+        'translation_error': 'Translation error',
+        'backup_restore': 'Backup & Restore',
+        'download_config': 'Download Config',
+        'upload_config': 'Upload Config',
+        'confirm_upload': 'Are you sure you want to overwrite the current configuration with the uploaded file? Unsaved changes will be lost.'
     },
     'ru': {
         // Nav
@@ -105,6 +120,7 @@ const LOCALES = {
         'confirm_reset_daily': 'Вы уверены, что хотите сбросить ежедневный прогресс (комбо/шифр) для этого игрока?',
         'daily_progress_reset_success': 'Ежедневный прогресс сброшен!',
         'daily_progress_reset_error': 'Ошибка сброса прогресса.',
+        'close': 'Закрыть',
         // Dashboard
         'dashboard': 'Дашборд',
         'total_players': 'Всего игроков',
@@ -112,7 +128,8 @@ const LOCALES = {
         'online_now': 'Онлайн сейчас',
         'total_coins_in_game': 'Всего монет в игре',
         'player_map': 'Карта игроков',
-        'top_5_upgrades': 'Топ-5 Популярных Улучшений',
+        'top_5_upgrades': 'Популярные улучшения',
+        'new_users_last_7_days': 'Новые игроки (за 7 дней)',
         'purchases': 'покупок',
         'no_data': 'Нет данных',
         // Players
@@ -124,6 +141,15 @@ const LOCALES = {
         'profit_ph': 'Прибыль/ч',
         'stars_spent': 'Потрачено звезд',
         'reset_daily': 'Сброс дня',
+        'player_details': 'Детали игрока',
+        'update_balance': 'Изменить баланс',
+        'current_balance': 'Текущий баланс',
+        'bonus_amount': 'Сумма бонуса (можно с минусом)',
+        'add_bonus': 'Начислить бонус',
+        'player_upgrades': 'Улучшения игрока',
+        'level': 'Уровень',
+        'balance_updated': 'Баланс успешно обновлен!',
+        'error_updating_balance': 'Ошибка обновления баланса.',
         // Daily Events
         'daily_events_setup': 'Настройка событий дня',
         'daily_combo': 'Ежедневное Комбо',
@@ -148,6 +174,10 @@ const LOCALES = {
         'price_in_stars': 'Цена в звёздах',
         'translate_ai': 'Перевести',
         'enter_text_to_translate': 'Введите текст хотя бы на одном языке для перевода.',
-        'translation_error': 'Ошибка перевода'
+        'translation_error': 'Ошибка перевода',
+        'backup_restore': 'Бэкап и Восстановление',
+        'download_config': 'Скачать конфиг',
+        'upload_config': 'Загрузить конфиг',
+        'confirm_upload': 'Вы уверены, что хотите перезаписать текущую конфигурацию загруженным файлом? Несохраненные изменения будут потеряны.'
     }
 };

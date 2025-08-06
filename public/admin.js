@@ -8,19 +8,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let dailyEvent = { combo_ids: [], cipher_word: '', combo_reward: 5000000, cipher_reward: 1000000 };
     let activeTab = 'dashboard';
     let currentLang = localStorage.getItem('adminLang') || 'ru';
+    let charts = {}; // To hold chart instances
 
     // --- DOM ELEMENTS ---
     const tabContainer = document.getElementById('tab-content-container');
     const tabTitle = document.getElementById('tab-title');
     const saveMainButton = document.getElementById('save-main-button');
+    const modalsContainer = document.getElementById('modals-container');
     
     // --- TRANSLATION FUNCTION ---
     const t = (key) => LOCALES[currentLang]?.[key] || LOCALES['en'][key];
 
     // --- UTILS ---
     const escapeHtml = (unsafe) => {
-        if (typeof unsafe !== 'string') return unsafe;
-        return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        if (typeof unsafe !== 'string' && typeof unsafe !== 'number') return unsafe || '';
+        return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     };
 
     const formatNumber = (num) => {
@@ -39,6 +41,11 @@ document.addEventListener('DOMContentLoaded', () => {
             flag.className = `flag flag-country-${currentLang === 'en' ? 'us' : currentLang}`;
         }
     };
+    
+    const destroyCharts = () => {
+        Object.values(charts).forEach(chart => chart.destroy());
+        charts = {};
+    };
 
     const showLoading = (message = 'Loading...') => {
         tabContainer.innerHTML = `
@@ -51,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const render = () => {
+        destroyCharts();
         document.querySelectorAll('.tab-button').forEach(btn => {
             const isActive = btn.dataset.tab === activeTab;
             btn.classList.toggle('active', isActive);
@@ -95,8 +103,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="new_players_24h"></div></div><div class="h1 mb-3">${formatNumber(dashboardStats.newPlayersToday)}</div></div></div></div>
                 <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="online_now"></div></div><div class="h1 mb-3">${formatNumber(dashboardStats.onlineNow)}</div></div></div></div>
                 <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader" data-translate="total_coins_in_game"></div></div><div class="h1 mb-3 text-green">${formatNumber(dashboardStats.totalCoins)}</div></div></div></div>
+                
+                <!-- Charts -->
+                 <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title" data-translate="new_users_last_7_days"></h3>
+                            <canvas id="chart-registrations" height="175"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-body">
+                           <h3 class="card-title" data-translate="top_5_upgrades"></h3>
+                           <canvas id="chart-upgrades" height="175"></canvas>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Map -->
-                <div class="col-lg-8">
+                <div class="col-12">
                     <div class="card">
                         <div class="card-body">
                             <h3 class="card-title" data-translate="player_map"></h3>
@@ -104,30 +131,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </div>
-                <!-- Top Upgrades -->
-                <div class="col-lg-4">
-                     <div class="card" style="height: calc(350px + 2rem)">
-                        <div class="card-header"><h3 class="card-title" data-translate="top_5_upgrades"></h3></div>
-                        <div class="list-group list-group-flush list-group-hoverable overflow-auto">
-                           ${(dashboardStats.popularUpgrades && dashboardStats.popularUpgrades.length > 0) ? dashboardStats.popularUpgrades.map(upg => {
-                                const upgradeDetails = localConfig.upgrades?.find(u => u.id === upg.upgrade_id);
-                                const iconHtml = upgradeDetails?.iconUrl ? `<span class="avatar me-2" style="background-image: url(${upgradeDetails.iconUrl})"></span>` : `<span class="avatar me-2">❓</span>`;
-                                return `<div class="list-group-item">
-                                    <div class="row align-items-center">
-                                        <div class="col-auto">${iconHtml}</div>
-                                        <div class="col text-truncate">
-                                            <div class="text-reset d-block">${upgradeDetails?.name?.[currentLang] || upgradeDetails?.name?.en || upg.upgrade_id}</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <div class="text-secondary">${formatNumber(upg.purchase_count)} <span data-translate="purchases"></span></div>
-                                        </div>
-                                    </div>
-                                </div>`;
-                           }).join('') : `<div class="p-4 text-center text-secondary" data-translate="no_data"></div>`}
-                        </div>
-                    </div>
-                </div>
             </div>`;
+
+        // Initialize Charts
+        const upgradeNames = (dashboardStats.popularUpgrades || []).map(upg => {
+            const details = localConfig.upgrades?.find(u => u.id === upg.upgrade_id);
+            return details?.name?.[currentLang] || details?.name?.en || upg.upgrade_id;
+        });
+        const upgradeCounts = (dashboardStats.popularUpgrades || []).map(upg => parseInt(upg.purchase_count));
+        
+        charts.upgrades = new Chart(document.getElementById('chart-upgrades'), {
+            type: 'bar',
+            data: { labels: upgradeNames, datasets: [{ label: t('purchases'), data: upgradeCounts }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true }
+        });
+
+        const regDates = (dashboardStats.registrations || []).map(r => new Date(r.date).toLocaleDateString(currentLang));
+        const regCounts = (dashboardStats.registrations || []).map(r => r.count);
+        charts.registrations = new Chart(document.getElementById('chart-registrations'), {
+            type: 'line',
+            data: { labels: regDates, datasets: [{ label: t('new_players_24h'), data: regCounts, tension: 0.1, pointRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
 
         // Initialize jVectorMap
         const mapData = playerLocations.reduce((acc, loc) => {
@@ -222,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </thead>
                     <tbody id="players-table-body">
                         ${playersToRender.map(p => `
-                            <tr data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name?.toLowerCase())}">
+                            <tr class="player-row" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name?.toLowerCase())}">
                                 <td>${escapeHtml(p.id)}</td>
                                 <td>${escapeHtml(p.name)}</td>
                                 <td>${formatNumber(p.balance)}</td>
@@ -285,7 +310,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderConfigTable = (sectionKey) => {
         const items = localConfig[sectionKey] || [];
         const isTask = sectionKey === 'tasks' || sectionKey === 'specialTasks';
-        let tableHTML = `<div class="space-y-4">
+        tabContainer.innerHTML = `<div class="space-y-4">
+             <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title" data-translate="${sectionKey}"></h3>
+                    <div class="card-actions">
+                        <input type="file" id="upload-config-input" class="d-none" accept=".json">
+                        <button class="btn btn-outline-secondary me-2" id="upload-config-btn" data-translate="upload_config"></button>
+                        <button class="btn btn-outline-secondary" id="download-config-btn" data-translate="download_config"></button>
+                    </div>
+                </div>
+            </div>
             ${items.map((item, index) => {
                 let fieldsHTML = '<div class="row g-3">';
                 fieldsHTML += `<div class="col-md-3"><label class="form-label" data-translate="id"></label><input type="text" value="${escapeHtml(item.id)}" class="form-control" readonly></div>`;
@@ -317,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('')}
             <button class="btn btn-primary add-new-btn" data-section="${sectionKey}" data-translate="add_new"></button>
             </div>`;
-        tabContainer.innerHTML = tableHTML;
     };
     
     // --- EVENT HANDLERS ---
@@ -464,6 +498,136 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+    
+    const handleDownloadConfig = (e) => {
+        const section = e.target.dataset.section;
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localConfig[section] || [], null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `${section}_config_backup.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+    
+    const handleUploadConfig = (e) => {
+        if (!confirm(t('confirm_upload'))) return;
+        const section = e.target.dataset.section;
+        const input = document.getElementById('upload-config-input');
+        input.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const uploadedConfig = JSON.parse(e.target.result);
+                        if (Array.isArray(uploadedConfig)) {
+                            localConfig[section] = uploadedConfig;
+                            render();
+                            alert('Config uploaded successfully! Press "Save All Changes" to apply.');
+                        } else {
+                            alert('Invalid file format. Expected a JSON array.');
+                        }
+                    } catch (err) {
+                        alert('Error parsing JSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+        input.click();
+    };
+
+    const handlePlayerRowClick = async (e) => {
+        const row = e.target.closest('.player-row');
+        if (!row) return;
+        const playerId = row.dataset.id;
+        const response = await fetchData(`/admin/api/player/${playerId}/details`);
+        if (response) {
+            renderPlayerDetailsModal(response);
+        }
+    };
+    
+    const renderPlayerDetailsModal = (player) => {
+        modalsContainer.innerHTML = '';
+        const modalEl = document.createElement('div');
+        const upgradesList = Object.entries(player.upgrades || {}).map(([id, level]) => {
+             const upg = localConfig.upgrades.find(u => u.id === id);
+             return `<li>${upg?.name?.[currentLang] || id}: <strong data-translate="level">${t('level')} ${level}</strong></li>`;
+        }).join('');
+        
+        modalEl.innerHTML = `
+            <div class="modal modal-blur fade show" id="player-details-modal" tabindex="-1" style="display: block;">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" data-translate="player_details"></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h3>${escapeHtml(player.name)} (${escapeHtml(player.id)})</h3>
+                                    <p data-translate="current_balance"></p>
+                                    <p class="h1">${formatNumber(player.balance)} 🪙</p>
+                                    <form id="update-balance-form" data-id="${player.id}">
+                                        <label class="form-label" data-translate="bonus_amount"></label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="bonus-amount-input" required>
+                                            <button type="submit" class="btn btn-primary" data-translate="add_bonus"></button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="col-md-6">
+                                    <h4 data-translate="player_upgrades"></h4>
+                                    <ul class="list-unstyled">${upgradesList || `<li class="text-secondary">${t('no_data')}</li>`}</ul>
+                                </div>
+                            </div>
+                        </div>
+                         <div class="modal-footer">
+                            <button type="button" class="btn" data-bs-dismiss="modal" data-translate="close"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-backdrop fade show"></div>`;
+        document.body.appendChild(modalEl);
+        applyTranslations();
+        
+        const modalInstance = new bootstrap.Modal(modalEl.querySelector('.modal'));
+        modalInstance.show();
+
+        modalEl.querySelector('.btn-close').addEventListener('click', () => modalInstance.hide());
+        modalEl.querySelector('[data-bs-dismiss="modal"]').addEventListener('click', () => modalInstance.hide());
+        modalEl.querySelector('.modal').addEventListener('hidden.bs.modal', () => modalEl.remove());
+        
+        modalEl.querySelector('#update-balance-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const amount = parseFloat(form.querySelector('#bonus-amount-input').value);
+            const playerId = form.dataset.id;
+            if (isNaN(amount)) return;
+            try {
+                const res = await fetch(`/admin/api/player/${playerId}/update-balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                if (!res.ok) throw new Error(t('error_updating_balance'));
+                const updatedPlayer = await res.json();
+                
+                // Update local state and UI
+                const playerIndex = allPlayers.findIndex(p => p.id === playerId);
+                if (playerIndex !== -1) allPlayers[playerIndex].balance = updatedPlayer.balance;
+                document.querySelector(`.player-row[data-id="${playerId}"] td:nth-child(3)`).textContent = formatNumber(updatedPlayer.balance);
+                
+                alert(t('balance_updated'));
+                modalInstance.hide();
+            } catch(err) {
+                alert(err.message);
+            }
+        });
+    };
 
     const handleSearch = (e) => {
         const query = e.target.value.toLowerCase().trim();
@@ -483,8 +647,16 @@ document.addEventListener('DOMContentLoaded', () => {
         tabContainer.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', deleteItem));
         tabContainer.querySelectorAll('.delete-player-btn').forEach(btn => btn.addEventListener('click', handleDeletePlayer));
         tabContainer.querySelectorAll('.reset-daily-btn').forEach(btn => btn.addEventListener('click', handleResetDaily));
+        tabContainer.querySelectorAll('.player-row').forEach(row => row.addEventListener('click', handlePlayerRowClick));
+        
         const searchInput = document.getElementById('player-search');
         if (searchInput) searchInput.addEventListener('input', handleSearch);
+        
+        const downloadBtn = document.getElementById('download-config-btn');
+        if (downloadBtn) downloadBtn.addEventListener('click', (e) => handleDownloadConfig(e, activeTab));
+        
+        const uploadBtn = document.getElementById('upload-config-btn');
+        if (uploadBtn) uploadBtn.addEventListener('click', (e) => handleUploadConfig(e, activeTab));
     };
 
     // --- INITIALIZATION ---
