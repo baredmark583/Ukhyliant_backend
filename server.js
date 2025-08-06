@@ -667,9 +667,32 @@ adminApiRouter.post('/player/:id/reset-daily', async (req, res) => {
 adminApiRouter.get('/config', async (req, res) => {
     log('info', 'Admin request: /api/config');
     try {
-        const config = await getConfig();
-        log('info', 'Raw config data from DB fetched for admin.');
-        res.json(config);
+        const dbConfig = await getConfig();
+        if (!dbConfig) {
+             return res.status(404).json({ error: 'Config not found' });
+        }
+
+        const serverBoostTemplates = INITIAL_BOOSTS;
+        const dbBoosts = dbConfig.boosts || [];
+
+        const reconciledBoosts = serverBoostTemplates.map(template => {
+            const savedBoost = dbBoosts.find(b => b.id === template.id);
+            if (savedBoost) {
+                return {
+                    id: template.id,
+                    name: savedBoost.name || template.name,
+                    description: savedBoost.description || template.description,
+                    costCoins: savedBoost.costCoins ?? template.costCoins,
+                    iconUrl: savedBoost.iconUrl || template.iconUrl,
+                };
+            }
+            return template;
+        });
+        
+        const cleanConfig = { ...dbConfig, boosts: reconciledBoosts };
+        
+        log('info', 'Cleaned config data sent to admin.');
+        res.json(cleanConfig);
     } catch(e) {
         log('error', 'Failed to get config', e);
         res.status(500).json({ error: 'Server error' });
