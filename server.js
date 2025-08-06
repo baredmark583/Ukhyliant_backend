@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -159,8 +160,20 @@ app.post('/api/login', async (req, res) => {
         
         const ip = req.ip;
         const geo = geoip.lookup(ip);
-        const countryCode = geo ? geo.country : null;
+        let countryCode = geo ? geo.country : null;
 
+        // Fallback to infer country from Telegram language if GeoIP fails or IP is local
+        if (!countryCode && tgUser.language_code) {
+            const lang = tgUser.language_code.toLowerCase();
+            if (lang === 'ua' || lang === 'uk') {
+                countryCode = 'UA';
+                log('info', `GeoIP for IP '${ip}' failed. Inferred country 'UA' from language code '${lang}'.`);
+            } else if (lang === 'ru') {
+                countryCode = 'RU';
+                 log('info', `GeoIP for IP '${ip}' failed. Inferred country 'RU' from language code '${lang}'.`);
+            }
+        }
+        
         const baseConfig = await getConfig();
         let dailyEvent = await getDailyEvent(getTodayDate());
         let user = await getUser(userId);
