@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -205,6 +206,12 @@ app.post('/api/login', async (req, res) => {
             }
         }
         
+        // Transform user object for the client
+        if (user) {
+            user.referrerId = user.referrer_id;
+            delete user.referrer_id;
+        }
+        
         if (!player) {
              const baseProfitFromReferrals = await getReferredUsersProfit(userId);
              const referralProfitPerHour = Math.floor(baseProfitFromReferrals * REFERRAL_PROFIT_SHARE);
@@ -253,7 +260,18 @@ app.post('/api/login', async (req, res) => {
         
         // Fetch daily event for today
         const today = new Date().toISOString().split('T')[0];
-        const dailyEventData = await getDailyEvent(today);
+        let dailyEventData = await getDailyEvent(today);
+
+        // Manually map snake_case from DB to camelCase for the client
+        if (dailyEventData) {
+            dailyEventData = {
+                // combo_ids is already expected as snake_case by the frontend
+                combo_ids: dailyEventData.combo_ids, 
+                cipherWord: dailyEventData.cipher_word,
+                comboReward: dailyEventData.combo_reward,
+                cipherReward: dailyEventData.cipher_reward,
+            }
+        }
 
         res.json({ user, player, config: { ...config, dailyEvent: dailyEventData } });
 
