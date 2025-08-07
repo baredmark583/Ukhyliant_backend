@@ -49,7 +49,6 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FRONTEND_ROOT = path.resolve(__dirname, '..');
 
 // --- Simple Logger ---
 const log = (level, message, data = '') => {
@@ -72,8 +71,9 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static(FRONTEND_ROOT)); // Serve frontend from root
-app.use(express.static(path.join(__dirname, 'public'))); // Serve admin files
+
+// Serve admin files under the /admin route. These files are inside the backend directory.
+app.use('/admin', express.static(path.join(__dirname, 'public')));
 
 // Session middleware
 const PgStore = connectPgSimple(session);
@@ -696,15 +696,6 @@ app.post('/admin/api/player/:id/reset-progress', checkAdminAuth, async (req, res
     res.sendStatus(200);
 });
 
-
-// Fallback to serve the main app
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/admin')) {
-        res.redirect('/admin/admin.html');
-    } else {
-        res.sendFile(path.join(FRONTEND_ROOT, 'index.html'));
-    }
-});
 
 // --- SERVER START ---
 (async () => {
