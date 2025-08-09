@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -61,7 +62,7 @@ const __dirname = path.dirname(__filename);
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 if (!ai) {
-    console.warn("GEMINI_API_KEY for Gemini is not set. Informant recruitment will be disabled.");
+    console.warn("GEMINI_API_KEY for Gemini is not set. AI features will be disabled.");
 }
 
 // --- Simple Logger ---
@@ -743,6 +744,31 @@ app.post('/api/informant/recruit', async (req, res) => {
         } else {
             res.status(500).json({ error: "Failed to process recruitment request." });
         }
+    }
+});
+
+app.get('/api/ominous-warning', async (req, res) => {
+    if (!ai) {
+        return res.status(503).json({ message: "Service unavailable." });
+    }
+    try {
+        const { lang = 'en' } = req.query;
+        const languageMap = {
+            'en': 'English',
+            'ua': 'Ukrainian',
+            'ru': 'Russian'
+        };
+        const language = languageMap[lang] || 'English';
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: `You are a 'Big Brother' style entity in a dystopian world. Generate a single, short, ominous warning for a citizen who has been caught breaking the rules. The message must be in ${language}. Be creative and intimidating. Do not use quotation marks around the message.`,
+        });
+
+        res.json({ message: response.text.trim() });
+    } catch (e) {
+        console.error("Ominous warning generation error:", e);
+        res.status(500).json({ message: "The system is watching... but cannot speak right now." });
     }
 });
 
