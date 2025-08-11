@@ -1,0 +1,25 @@
+
+{
+  "name": "ukhyliant-backend",
+  "version": "1.0.0",
+  "description": "Backend for the Ukhyliant Clicker game",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^0.15.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "pg": "^8.12.0",
+    "connect-pg-simple": "^9.0.1",
+    "geoip-lite": "^1.4.10"
+  }
+}
