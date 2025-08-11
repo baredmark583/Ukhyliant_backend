@@ -28,9 +28,6 @@
         --tblr-font-sans-serif: 'IBM Plex Mono', monospace;
         --tblr-page-wrapper-padding: 1rem;
       }
-
-      /* --------------- Основные правки --------------- */
-      /* Разрешаем прокрутку страницы (убрали overflow: hidden) */
       html, body {
         background-color: var(--bg-main);
         color: var(--text-primary); /* основной цвет текста теперь белый */
@@ -40,51 +37,15 @@
         background-size: 30px 30px;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        overflow: auto; /* было hidden — поменяли на auto */
+        overflow: hidden;
       }
-
-      /* Фиксируем вертикальный сайдбар и делаем его скроллимым */
-      .navbar-vertical {
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 260px; /* при необходимости измените ширину */
-        z-index: 1030;
-        overflow-y: auto;
-        padding-top: 0.75rem;
-        background-color: var(--bg-card);
-        border-color: var(--border-color);
-      }
-
-      /* Сдвигаем основную область, чтобы она не была под сайдбаром */
-      .page-wrapper {
-        margin-left: 260px; /* совпадает с шириной сайдбара */
-        height: calc(100vh - 52px); /* 52px header height */
-        overflow: auto; /* прокрутка внутри контентной области */
-        background: transparent !important;
-      }
-
-      /* Для узких экранов - сайдбар становится статичным и убираем отступ */
-      @media (max-width: 991.98px) {
-        .navbar-vertical {
-          position: static;
-          width: auto;
-          height: auto;
-        }
-        .page-wrapper {
-          margin-left: 0;
-        }
-      }
-
-      /* --------------- Остальной кастомный стиль (как было) --------------- */
       .font-display {
         font-family: 'Russo One', sans-serif;
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
       .page, .page-wrapper { background: transparent !important; }
-      .card, .modal-content {
+      .card, .modal-content { 
         background: var(--bg-card) !important;
         border: 1px solid var(--border-color) !important;
         color: var(--text-primary);
@@ -103,34 +64,34 @@
         border-color: var(--border-color);
       }
       .navbar-brand { font-family: 'Russo One', sans-serif; }
-
+      
       .navbar-vertical .nav-link, .dropdown-item {
         font-family: 'Russo One', sans-serif;
         text-transform: uppercase;
-        color: var(--text-primary) !important;
+        color: var(--text-primary) !important; /* основной цвет текста теперь белый и приоритетный */
       }
       .navbar-vertical .nav-link:hover, .dropdown-item:hover {
-        color: var(--text-primary) !important;
+        color: var(--text-primary) !important; /* белый текст при наведении и приоритетный */
         background-color: var(--bg-card-hover);
       }
       .navbar-vertical .nav-link.active,
-      .navbar-vertical .nav-link.show {
-        color: var(--accent-green);
+      .navbar-vertical .nav-link.show { /* .show is added by bootstrap on active dropdowns */
+        color: var(--accent-green); /* Active link color */
       }
-      .navbar-vertical .nav-link.active .icon,
-      .navbar-vertical .nav-link.show .icon,
+      .navbar-vertical .nav-link.active .icon, 
+      .navbar-vertical .nav-link.show .icon, 
       .navbar-vertical .nav-link:hover .icon {
         color: var(--accent-green);
       }
 
       .page-title, .card-title, .modal-title {
         font-family: 'Russo One', sans-serif;
-        color: var(--text-primary);
+        color: var(--text-primary); /* белый */
       }
       .h1, .h2, .h3, .h4, .h5, .h6 { color: var(--text-primary); }
       .h1.text-green { color: var(--accent-green); }
       .h1.text-yellow { color: #facc15; }
-
+      
       .btn {
         font-family: 'Russo One', sans-serif;
         text-transform: uppercase;
@@ -145,38 +106,41 @@
       .form-control, .form-select {
         background-color: var(--bg-main);
         border-color: var(--border-color);
-        color: var(--text-primary);
+        color: var(--text-primary); /* белый */
       }
       .form-control:focus, .form-select:focus {
-        color: var(--text-primary);
+        color: var(--text-primary); /* белый */
         background-color: var(--bg-main);
         border-color: var(--accent-green);
         box-shadow: 0 0 0 0.25rem rgba(74, 222, 128, 0.25);
       }
-
+      
       .table { --tblr-table-border-color: var(--border-color); --tblr-table-color: var(--text-primary); }
       .table thead {
-        background-color: var(--bg-card-hover) !important;
+        background-color: var(--bg-card-hover) !important; /* тёмный фон для шапки */
       }
       .table thead th {
-        color: var(--text-primary) !important;
-        background-color: var(--bg-card-hover) !important;
+        color: var(--text-primary) !important; /* белый текст */
+        background-color: var(--bg-card-hover) !important; /* тёмный фон для ячеек шапки */
         font-weight: 700;
       }
-
+      
+      /* Override Tabler's text utilities */
       .text-muted, .text-secondary {
-        color: var(--text-secondary) !important;
+        color: var(--text-secondary) !important; /* светло-серый для вторичного текста */
       }
       .subheader {
           color: var(--text-secondary) !important;
       }
-
+      
+      /* Chart colors */
       .chart-container {
         border: 1px solid var(--border-color);
         padding: 1rem;
         background: rgba(0,0,0,0.1);
       }
-
+      
+      /* Fix for white background on config fieldsets */
       fieldset.form-fieldset {
         background: transparent !important;
         border: 1px solid var(--border-color);
@@ -194,10 +158,13 @@
         font-weight: 700;
       }
       .card .form-label {
-        color: var(--text-primary);
+        color: var(--text-primary); /* белый */
       }
 
       /* Dashboard Layout */
+      .page-wrapper {
+        height: calc(100vh - 52px); /* 52px is approx header height */
+      }
       .page-body {
         height: 100%;
       }
@@ -216,7 +183,6 @@
       #dashboard-layout .main-content-row {
         flex-grow: 1;
         min-height: 0;
-        align-items: flex-start;
       }
       #dashboard-layout .map-row {
         flex-shrink: 0;
@@ -235,7 +201,7 @@
          flex-grow: 1;
        }
        .progress-bar {
-          background-color: #a9c1e8 !important;
+          background-color: #a9c1e8 !important; 
           border: 1px solid #111827;
       }
       .progress {
