@@ -1231,8 +1231,11 @@ export const resetPlayerProgress = async (userId) => {
 
         // Reset progress but keep identity and referrals
         player.balance = 0;
+        player.adminBonus = 0; // Fix: ensure pending bonuses are cleared
         player.profitPerHour = 0;
         player.tasksProfitPerHour = 0;
+        player.referralProfitPerHour = 0; // Will be recalculated
+        player.cellProfitBonus = 0; // Will be recalculated
         player.upgrades = {};
         player.completedDailyTaskIds = [];
         player.purchasedSpecialTaskIds = [];
@@ -1245,10 +1248,10 @@ export const resetPlayerProgress = async (userId) => {
         player.suspicion = 0;
         // Keep cellId and referrals
         
-        // Reset cheat flags
-        delete player.isCheater;
-        delete player.cheatStrikes;
-        delete player.cheatLog;
+        // Fix: Reset cheat flags explicitly instead of deleting to ensure they can be re-flagged
+        player.isCheater = false;
+        player.cheatStrikes = 0;
+        player.cheatLog = [];
         
         await client.query('UPDATE players SET data = $1 WHERE id = $2', [player, userId]);
         
