@@ -1150,6 +1150,32 @@ export const joinActiveBattle = async (userId) => {
     }
 };
 
+export const getBattleLeaderboard = async () => {
+    // Find the currently active battle
+    const battleRes = await executeQuery('SELECT id FROM cell_battles WHERE start_time <= NOW() AND end_time > NOW() ORDER BY start_time DESC LIMIT 1');
+    const activeBattle = battleRes.rows[0];
+
+    if (!activeBattle) {
+        return []; // No active battle, return empty leaderboard
+    }
+
+    const leaderboardRes = await executeQuery(`
+        SELECT
+            cbp.cell_id as "cellId",
+            c.name as "cellName",
+            cbp.score
+        FROM cell_battle_participants cbp
+        JOIN cells c ON cbp.cell_id = c.id
+        WHERE cbp.battle_id = $1
+        ORDER BY cbp.score DESC
+    `, [activeBattle.id]);
+
+    return leaderboardRes.rows.map(row => ({
+        ...row,
+        score: parseFloat(row.score)
+    }));
+};
+
 export const openLootboxInDb = async (userId, boxType, config) => {
     if (boxType !== 'coin') throw new Error("This function only supports coin lootboxes.");
     
