@@ -1569,6 +1569,63 @@ export const updateWithdrawalRequestStatusInDb = async (requestId, status) => {
 };
 
 // --- Admin Panel Functions ---
+export const getCellAnalytics = async () => {
+    // KPI Queries
+    const totalCellsRes = await executeQuery('SELECT COUNT(*) FROM cells');
+    const totalBankRes = await executeQuery('SELECT SUM(balance) FROM cells');
+    
+    // Find the most recent battle (active or last finished)
+    const lastBattleRes = await executeQuery('SELECT id FROM cell_battles ORDER BY end_time DESC LIMIT 1');
+    const lastBattleId = lastBattleRes.rows[0]?.id;
+
+    let totalParticipants = 0;
+    if (lastBattleId) {
+        const participantsRes = await executeQuery('SELECT COUNT(*) FROM cell_battle_participants WHERE battle_id = $1', [lastBattleId]);
+        totalParticipants = parseInt(participantsRes.rows[0].count, 10);
+    }
+
+    // Leaderboard Query
+    const leaderboardRes = await executeQuery(`
+        SELECT
+            c.id,
+            c.name,
+            c.balance,
+            (SELECT COUNT(*) FROM players WHERE (data->>'cellId')::int = c.id) as members,
+            (
+                SELECT COALESCE(SUM((p.data->>'profitPerHour')::numeric), 0)
+                FROM players p
+                WHERE (p.data->>'cellId')::int = c.id
+            ) as total_profit
+        FROM cells c
+        ORDER BY total_profit DESC NULLS LAST;
+    `);
+
+    // Battle History Query
+    const battleHistoryRes = await executeQuery(`
+        SELECT id, end_time, winner_details
+        FROM cell_battles
+        WHERE winner_details IS NOT NULL AND rewards_distributed = TRUE
+        ORDER BY end_time DESC
+        LIMIT 10;
+    `);
+
+    return {
+        kpi: {
+            totalCells: parseInt(totalCellsRes.rows[0].count, 10),
+            battleParticipants: totalParticipants,
+            totalBank: parseFloat(totalBankRes.rows[0].sum) || 0,
+            ticketsSpent: totalParticipants, // Assuming one ticket per participant
+        },
+        leaderboard: leaderboardRes.rows.map(r => ({
+            ...r,
+            balance: parseFloat(r.balance),
+            members: parseInt(r.members, 10),
+            total_profit: parseFloat(r.total_profit)
+        })),
+        battleHistory: battleHistoryRes.rows
+    };
+};
+
 export const getAllPlayersForAdmin = async () => {
     const usersRes = await executeQuery('SELECT id, name, language FROM users');
     const playersRes = await executeQuery('SELECT id, data FROM players');
