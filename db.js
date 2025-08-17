@@ -2008,18 +2008,48 @@ const startNewBattle = async (config) => {
 };
 
 export const checkAndManageBattles = async (config) => {
-    const activeBattleRes = await executeQuery(`SELECT * FROM cell_battles WHERE end_time > NOW() AND start_time <= NOW()`);
-    const activeBattle = activeBattleRes.rows[0];
-    
+    // End any battles that have finished but not yet processed rewards
     const endedBattleRes = await executeQuery(`SELECT * FROM cell_battles WHERE end_time <= NOW() AND rewards_distributed = FALSE`);
     for (const battle of endedBattleRes.rows) {
         await endBattle(battle.id, config);
     }
+
+    // Check if there's already an active battle
+    const activeBattleRes = await executeQuery(`SELECT * FROM cell_battles WHERE end_time > NOW() AND start_time <= NOW()`);
+    if (activeBattleRes.rows.length > 0) {
+        return; // A battle is active, do nothing more.
+    }
     
-    if (!activeBattle) {
-        const schedule = config.battleSchedule;
-        const now = new Date();
-        const currentDayUTC = now.getUTCDay();
-        const currentHourUTC = now.getUTCHours();
+    const schedule = config.battleSchedule;
+    if (!schedule) {
+        // Use a simple log function if one is not passed
+        const log = (level, msg) => console.log(`[${level.toUpperCase()}] ${msg}`);
+        log('info', "No battle schedule configured. Skipping new battle start.");
+        return;
+    }
+
+    const now = new Date();
+    const currentDayUTC = now.getUTCDay();
+    const currentHourUTC = now.getUTCHours();
+
+    // Check if it's the right day and hour to potentially start a battle
+    if (currentDayUTC !== schedule.dayOfWeek || currentHourUTC !== schedule.startHourUTC) {
+        return;
+    }
+    
+    // Check the last battle's start time to prevent re-triggering within the same hour
+    const lastBattleRes = await executeQuery('SELECT start_time FROM cell_battles ORDER BY start_time DESC LIMIT 1');
+    if (lastBattleRes.rows.length > 0) {
+        const lastStartTime = new Date(lastBattleRes.rows[0].start_time);
+        const hoursSinceLastStart = (now.getTime() - lastStartTime.getTime()) / (1000 * 60 * 60);
         
-        const lastBattleRes = await
+        // If the last battle started less than 23 hours ago, don't start a new one.
+        // This prevents starting a new battle every minute during the scheduled hour.
+        if (hoursSinceLastStart < 23) {
+            return;
+        }
+    }
+    
+    // All checks passed, start a new battle
+    await startNewBattle(config);
+};
