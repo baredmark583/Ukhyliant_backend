@@ -1082,6 +1082,74 @@ export const buyTicketInDb = async (userId, config) => {
     }
 }
 
+export const addTapsToBattle = async (cellId, taps) => {
+    if (!cellId || taps <= 0) return;
+
+    try {
+        // Find the active battle ID
+        const battleRes = await executeQuery('SELECT id FROM cell_battles WHERE end_time > NOW() AND start_time <= NOW() LIMIT 1');
+        const activeBattleId = battleRes.rows[0]?.id;
+
+        if (activeBattleId) {
+            // This is a "fire-and-forget" update. If the cell is not a participant, it does nothing.
+            // This is efficient and prevents errors if a player is tapping but their cell hasn't joined yet.
+            await executeQuery(
+                'UPDATE cell_battle_participants SET score = score + $1 WHERE battle_id = $2 AND cell_id = $3',
+                [taps, activeBattleId, cellId]
+            );
+        }
+    } catch (e) {
+        console.error(`[BATTLE_TAP_ERROR] Failed to add taps for cell ${cellId}:`, e.message);
+        // Don't throw, as this shouldn't crash the main player save loop.
+    }
+};
+
+export const joinActiveBattle = async (userId) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const playerRes = await client.query('SELECT data FROM players WHERE id = $1 FOR UPDATE', [userId]);
+        const player = playerRes.rows[0]?.data;
+        if (!player || !player.cellId) {
+            throw new Error("You must be in a cell to join a battle.");
+        }
+        const { cellId } = player;
+
+        const battleRes = await client.query('SELECT id FROM cell_battles WHERE end_time > NOW() AND start_time <= NOW() LIMIT 1');
+        const activeBattleId = battleRes.rows[0]?.id;
+        if (!activeBattleId) {
+            throw new Error("There is no active battle to join.");
+        }
+
+        const participantRes = await client.query('SELECT id FROM cell_battle_participants WHERE battle_id = $1 AND cell_id = $2', [activeBattleId, cellId]);
+        if (participantRes.rows.length > 0) {
+            throw new Error("Your cell has already joined this battle.");
+        }
+
+        const cellRes = await client.query('SELECT ticket_count FROM cells WHERE id = $1 FOR UPDATE', [cellId]);
+        const ticketCount = cellRes.rows[0]?.ticket_count || 0;
+        if (ticketCount < 1) {
+            throw new Error("Your cell does not have enough tickets to join the battle.");
+        }
+
+        await client.query('UPDATE cells SET ticket_count = ticket_count - 1 WHERE id = $1', [cellId]);
+        await client.query('INSERT INTO cell_battle_participants (battle_id, cell_id) VALUES ($1, $2)', [activeBattleId, cellId]);
+
+        await client.query('COMMIT');
+        
+        // Return the fresh status after joining
+        return getBattleStatusForCell(cellId);
+
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error(`[JOIN_BATTLE_ERROR] User ${userId} failed to join battle:`, e.message);
+        throw e; // Re-throw to be caught by the API route handler
+    } finally {
+        client.release();
+    }
+};
+
 export const openLootboxInDb = async (userId, boxType, config) => {
     if (boxType !== 'coin') throw new Error("This function only supports coin lootboxes.");
     
