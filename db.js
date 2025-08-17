@@ -1896,4 +1896,35 @@ export const forceEndBattle = async (config) => {
 };
 
 export const getBattleStatusForCell = async (cellId) => {
-    const battleRes = await executeQuery('SELECT * FROM cell_battles WHERE end_time
+    // Find the currently active battle
+    const battleRes = await executeQuery('SELECT * FROM cell_battles WHERE start_time <= NOW() AND end_time > NOW() ORDER BY start_time DESC LIMIT 1');
+    const activeBattle = battleRes.rows[0];
+
+    if (!activeBattle) {
+        return { isActive: false, isParticipant: false, battleId: null, timeRemaining: 0, myScore: 0 };
+    }
+
+    const timeRemaining = Math.floor((new Date(activeBattle.end_time).getTime() - Date.now()) / 1000);
+    
+    let isParticipant = false;
+    let myScore = 0;
+
+    if (cellId) {
+        const participantRes = await executeQuery(
+            'SELECT score FROM cell_battle_participants WHERE battle_id = $1 AND cell_id = $2',
+            [activeBattle.id, cellId]
+        );
+        if (participantRes.rows.length > 0) {
+            isParticipant = true;
+            myScore = parseFloat(participantRes.rows[0].score);
+        }
+    }
+
+    return {
+        isActive: true,
+        isParticipant,
+        battleId: activeBattle.id,
+        timeRemaining: Math.max(0, timeRemaining),
+        myScore
+    };
+};
