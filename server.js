@@ -75,7 +75,11 @@ import {
 } from './constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// __dirname is the directory where server.js is located when run.
+// On Render, the log "at file:///opt/render/project/src/server.js" suggests that
+// server.js is executed from the project source root, not from within a 'backend' folder.
+// This requires adjusting how we locate static assets.
+const executionDir = path.dirname(__filename);
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 if (!ai) {
@@ -134,22 +138,27 @@ const checkAdminAuth = (req, res, next) => {
     }
 };
 
+// --- PATH CORRECTION FOR RENDER DEPLOYMENT ---
+// The user's file structure is `backend/public` for admin files.
+// If server.js is run from the root, we need to point to `backend/public` relative to the execution directory.
+const adminPublicPath = path.join(executionDir, 'backend', 'public');
+// The project root with index.html is the execution directory itself on Render.
+const projectRoot = executionDir;
+
+
 // Protected routes for the admin panel must come BEFORE the static middleware
 app.get('/admin/', checkAdminAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+    res.sendFile(path.join(adminPublicPath, 'admin.html'));
 });
 app.get('/admin/admin.html', checkAdminAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+    res.sendFile(path.join(adminPublicPath, 'admin.html'));
 });
 
 // Serve admin static files (JS, CSS, login.html etc).
-// This comes AFTER the protected routes so they can be handled first.
-app.use('/admin', express.static(path.join(__dirname, 'public')));
+app.use('/admin', express.static(adminPublicPath));
 
 
 // --- Serve root static files (for frontend app, manifest, etc.) ---
-// This should come after specific routes like /admin to avoid conflicts
-const projectRoot = path.join(__dirname, '..');
 app.use(express.static(projectRoot));
 
 
