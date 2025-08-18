@@ -156,6 +156,15 @@ app.use('/admin', express.static(adminPublicPath));
 // --- Serve root static files (for frontend app, manifest, etc.) ---
 app.use(express.static(projectRoot));
 
+// Explicit route for tonconnect-manifest.json to fix 404 errors in some deployment environments.
+app.get('/tonconnect-manifest.json', (req, res) => {
+    res.sendFile(path.join(projectRoot, 'tonconnect-manifest.json'), (err) => {
+        if (err) {
+            log('error', 'Failed to send tonconnect-manifest.json. Make sure the file exists in the root directory.', err);
+            res.status(404).send('Not Found');
+        }
+    });
+});
 
 // --- API ROUTES ---
 
