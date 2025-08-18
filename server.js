@@ -125,99 +125,6 @@ app.use(session({
     cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 days
 }));
 
-// --- Social Stats Cache ---
-const socialStatsCache = {
-    youtubeSubscribers: 0,
-    youtubeViews: 0,
-    telegramSubscribers: 0,
-    lastUpdated: 0
-};
-
-// --- Helper Functions ---
-const fetchWithTimeout = (url, options = {}, timeout = 5000) => {
-    return Promise.race([
-        fetch(url, options),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
-    ]);
-};
-
-const answerPreCheckoutQuery = async (queryId, ok, errorMessage = '') => {
-    const { BOT_TOKEN } = process.env;
-    const url = `https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`;
-    await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            pre_checkout_query_id: queryId,
-            ok,
-            ...(errorMessage && { error_message: errorMessage })
-        })
-    });
-};
-
-
-const fetchYoutubeStats = async (channelId, apiKey) => {
-    if (!channelId || !apiKey) return { subscribers: 0, views: 0 };
-    try {
-        const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${apiKey}`;
-        const response = await fetchWithTimeout(url);
-        if (!response.ok) {
-            log('error', `YouTube API error: ${response.statusText}`);
-            return { subscribers: 0, views: 0 };
-        }
-        const data = await response.json();
-        const stats = data?.items?.[0]?.statistics;
-        return {
-            subscribers: parseInt(stats?.subscriberCount || 0),
-            views: parseInt(stats?.viewCount || 0)
-        };
-    } catch (error) {
-        log('error', 'Failed to fetch YouTube stats', error);
-        return { subscribers: 0, views: 0 };
-    }
-};
-
-const fetchTelegramStats = async (channelUsername, botToken) => {
-    if (!channelUsername || !botToken) return 0;
-    // Ensure channel username starts with @
-    const formattedUsername = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername.split('/').pop()}`;
-    try {
-        const url = `https://api.telegram.org/bot${botToken}/getChatMembersCount?chat_id=${formattedUsername}`;
-        const response = await fetchWithTimeout(url);
-        if (!response.ok) {
-            log('error', `Telegram API error: ${response.statusText}`);
-            return 0;
-        }
-        const data = await response.json();
-        return data.result || 0;
-    } catch (error) {
-        log('error', 'Failed to fetch Telegram stats', error);
-        return 0;
-    }
-};
-
-
-const updateSocialStatsCache = async () => {
-    log('info', 'Updating social stats cache...');
-    const config = await getGameConfig();
-    if (!config || !config.socials) {
-        log('warn', 'Socials not configured, skipping cache update.');
-        return;
-    }
-
-    const { youtubeChannelId, telegramChannelId } = config.socials;
-    const { YOUTUBE_API_KEY, BOT_TOKEN } = process.env;
-
-    const youtubeData = await fetchYoutubeStats(youtubeChannelId, YOUTUBE_API_KEY);
-    const telegramSubs = await fetchTelegramStats(telegramChannelId, BOT_TOKEN);
-
-    socialStatsCache.youtubeSubscribers = youtubeData.subscribers;
-    socialStatsCache.youtubeViews = youtubeData.views;
-    socialStatsCache.telegramSubscribers = telegramSubs;
-    socialStatsCache.lastUpdated = Date.now();
-    log('info', 'Social stats cache updated.', socialStatsCache);
-};
-
 // --- AUTH MIDDLEWARE ---
 const checkAdminAuth = (req, res, next) => {
     if (req.session.isAdmin) {
@@ -238,6 +145,12 @@ app.get('/admin/admin.html', checkAdminAuth, (req, res) => {
 // Serve admin static files (JS, CSS, login.html etc).
 // This comes AFTER the protected routes so they can be handled first.
 app.use('/admin', express.static(path.join(__dirname, 'public')));
+
+
+// --- Serve root static files (for frontend app, manifest, etc.) ---
+// This should come after specific routes like /admin to avoid conflicts
+const projectRoot = path.join(__dirname, '..');
+app.use(express.static(projectRoot));
 
 
 // --- API ROUTES ---
@@ -1363,4 +1276,13 @@ initializeDb().then(() => {
 }).catch(error => {
     log('error', 'Failed to initialize database', error);
     process.exit(1);
+});
+// Add a catch-all for SPA routing, ensuring it doesn't interfere with API/admin routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/admin/')) {
+    res.sendFile(path.join(projectRoot, 'index.html'));
+  } else {
+    // If it's an unhandled API/admin route, it should 404
+    res.status(404).send('Not Found');
+  }
 });
