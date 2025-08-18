@@ -66,7 +66,8 @@ import {
     connectTonWalletInDb,
     requestWithdrawalInDb,
     getWithdrawalRequestsForAdmin,
-    updateWithdrawalRequestStatusInDb
+    updateWithdrawalRequestStatusInDb,
+    getPlayerWithdrawalRequests
 } from './db.js';
 import { 
     ADMIN_TELEGRAM_ID, MODERATOR_TELEGRAM_IDS, INITIAL_MAX_ENERGY,
@@ -82,7 +83,7 @@ const executionDir = path.dirname(__filename); // e.g., /path/to/project/backend
 const adminPublicPath = path.join(executionDir, 'public');
 
 // Path to the project root (where index.html is), which is one level up from the execution directory.
-const projectRoot = path.join(executionDir, '..');
+const projectRoot = path.resolve(executionDir, '..');
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 if (!ai) {
@@ -925,6 +926,21 @@ app.post('/api/wallet/request-withdrawal', async (req, res) => {
     }
 });
 
+app.get('/api/wallet/my-requests', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required." });
+        }
+        const requests = await getPlayerWithdrawalRequests(userId);
+        res.json({ requests });
+    } catch (e) {
+        log('error', 'Failed to fetch player withdrawal requests', e);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
 // --- Admin Panel API (protected by middleware) ---
 app.post('/admin/login', (req, res) => {
     const { password } = req.body;
@@ -1349,10 +1365,16 @@ initializeDb().then(() => {
     log('error', 'Failed to initialize database', error);
     process.exit(1);
 });
+
 // Add a catch-all for SPA routing, ensuring it doesn't interfere with API/admin routes
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api/') && !req.path.startsWith('/admin/')) {
-    res.sendFile(path.join(projectRoot, 'index.html'));
+    res.sendFile(path.join(projectRoot, 'index.html'), (err) => {
+        if (err) {
+            log('error', `Failed to send index.html. Looked in ${projectRoot}. Error: ${err.message}`);
+            res.status(404).send('Application not found.');
+        }
+    });
   } else {
     // If it's an unhandled API/admin route, it should 404
     res.status(404).send('Not Found');
