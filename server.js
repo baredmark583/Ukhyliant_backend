@@ -74,12 +74,15 @@ import {
     CHEAT_DETECTION_THRESHOLD_TPS, CHEAT_DETECTION_STRIKES_TO_FLAG
 } from './constants.js';
 
+// --- Corrected Path Configuration ---
 const __filename = fileURLToPath(import.meta.url);
-// __dirname is the directory where server.js is located when run.
-// On Render, the log "at file:///opt/render/project/src/server.js" suggests that
-// server.js is executed from the project source root, not from within a 'backend' folder.
-// This requires adjusting how we locate static assets.
-const executionDir = path.dirname(__filename);
+const executionDir = path.dirname(__filename); // e.g., /path/to/project/backend
+
+// Path to the 'public' directory inside 'backend' for the admin panel.
+const adminPublicPath = path.join(executionDir, 'public');
+
+// Path to the project root (where index.html is), which is one level up from the execution directory.
+const projectRoot = path.join(executionDir, '..');
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 if (!ai) {
@@ -137,14 +140,6 @@ const checkAdminAuth = (req, res, next) => {
         res.status(401).redirect('/admin/login.html');
     }
 };
-
-// --- PATH CORRECTION FOR RENDER DEPLOYMENT ---
-// The user's file structure is `backend/public` for admin files.
-// If server.js is run from the root, we need to point to `backend/public` relative to the execution directory.
-const adminPublicPath = path.join(executionDir, 'backend', 'public');
-// The project root with index.html is the execution directory itself on Render.
-const projectRoot = executionDir;
-
 
 // Protected routes for the admin panel must come BEFORE the static middleware
 app.get('/admin/', checkAdminAuth, (req, res) => {
