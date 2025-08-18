@@ -929,6 +929,77 @@ app.get('/admin/logout', (req, res) => {
     });
 });
 
+let socialStatsCache = {
+    youtubeSubscribers: 0,
+    youtubeViews: 0,
+    telegramSubscribers: 0,
+    lastUpdated: 0,
+};
+
+const updateSocialStatsCache = async () => {
+    log('info', 'Updating social stats cache...');
+    try {
+        const config = await getGameConfig();
+        const { socials } = config;
+        const { YOUTUBE_API_KEY, BOT_TOKEN } = process.env;
+
+        // Fetch YouTube Stats
+        if (YOUTUBE_API_KEY && socials?.youtubeChannelId) {
+            try {
+                const ytResponse = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${socials.youtubeChannelId}&key=${YOUTUBE_API_KEY}`);
+                const ytData = await ytResponse.json();
+                if (ytData.items && ytData.items.length > 0) {
+                    socialStatsCache.youtubeSubscribers = parseInt(ytData.items[0].statistics.subscriberCount, 10);
+                    socialStatsCache.youtubeViews = parseInt(ytData.items[0].statistics.viewCount, 10);
+                } else {
+                     log('warn', 'Could not fetch YouTube stats. Check channel ID.');
+                }
+            } catch (ytError) {
+                log('error', 'Failed to fetch YouTube stats', ytError);
+            }
+        } else {
+             log('info', 'Skipping YouTube stats fetch (no API key or channel ID).');
+        }
+
+        // Fetch Telegram Stats
+        if (BOT_TOKEN && socials?.telegramChannelId) {
+            try {
+                // Ensure chat_id starts with '@' if it's a username
+                const chatId = socials.telegramChannelId.startsWith('@') ? socials.telegramChannelId : `@${socials.telegramChannelId}`;
+                const tgResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChatMembersCount?chat_id=${chatId}`);
+                const tgData = await tgResponse.json();
+                if (tgData.ok) {
+                    socialStatsCache.telegramSubscribers = tgData.result;
+                } else {
+                    log('warn', `Could not fetch Telegram stats: ${tgData.description}`);
+                }
+            } catch (tgError) {
+                log('error', 'Failed to fetch Telegram stats', tgError);
+            }
+        } else {
+             log('info', 'Skipping Telegram stats fetch (no Bot Token or channel ID).');
+        }
+
+        socialStatsCache.lastUpdated = Date.now();
+        log('info', 'Social stats cache updated successfully.', socialStatsCache);
+    } catch (error) {
+        log('error', 'Failed to update social stats cache', error);
+    }
+};
+
+app.get('/admin/api/social-stats', checkAdminAuth, async (req, res) => {
+    try {
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+        if (Date.now() - socialStatsCache.lastUpdated > CACHE_DURATION) {
+            await updateSocialStatsCache();
+        }
+        res.json(socialStatsCache);
+    } catch (error) {
+        log('error', 'Fetching social stats failed', error);
+        res.status(500).json({ error: 'Failed to fetch social stats' });
+    }
+});
+
 app.post('/admin/api/translate-text', checkAdminAuth, async (req, res) => {
     if (!ai) {
         return res.status(503).json({ error: "Translation service is not available." });
@@ -1186,18 +1257,6 @@ app.post('/admin/api/daily-events', checkAdminAuth, async (req, res) => {
     const { combo_ids, cipher_word, combo_reward, cipher_reward } = req.body;
     await saveDailyEvent(today, combo_ids, cipher_word, combo_reward, cipher_reward);
     res.sendStatus(200);
-});
-app.get('/admin/api/social-stats', checkAdminAuth, async (req, res) => {
-    try {
-        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-        if (Date.now() - socialStatsCache.lastUpdated > CACHE_DURATION) {
-            await updateSocialStatsCache();
-        }
-        res.json(socialStatsCache);
-    } catch (error) {
-        log('error', 'Fetching social stats failed', error);
-        res.status(500).json({ error: 'Failed to fetch social stats' });
-    }
 });
 
 app.get('/admin/api/cell-analytics', checkAdminAuth, async (req, res) => {
