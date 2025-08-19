@@ -1660,7 +1660,7 @@ export const getCellAnalytics = async () => {
 };
 
 export const getAllPlayersForAdmin = async () => {
-    const usersRes = await executeQuery('SELECT id, name, language, ton_wallet_address FROM users');
+    const usersRes = await executeQuery('SELECT id, name, language FROM users');
     const playersRes = await executeQuery('SELECT id, data FROM players');
     const playersMap = new Map(playersRes.rows.map(p => [p.id, p.data]));
     const allPlayers = usersRes.rows.map(user => {
