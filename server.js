@@ -1,5 +1,3 @@
-
-
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -113,6 +111,7 @@ const log = (level, message, data = '') => {
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.set('trust proxy', 1);
 app.use(cors({ origin: '*', credentials: true }));
 // Use express.json() for all routes EXCEPT the webhook
 app.use((req, res, next) => {
@@ -1270,7 +1269,18 @@ app.post('/admin/api/generate-ai-content', checkAdminAuth, async (req, res) => {
             description: "Describes what triggers the event. Use one of the allowed types and its corresponding parameters.",
             properties: {
                 type: { type: Type.STRING, enum: ['meta_tap', 'login_at_time', 'balance_equals', 'upgrade_purchased'] },
-                params: { type: Type.OBJECT, description: "Parameters for the trigger type. E.g., for 'meta_tap', use { 'targetId': '...', 'taps': 10 }." }
+                params: {
+                    type: Type.OBJECT,
+                    description: "Parameters for the trigger. Only populate the parameters relevant to the chosen 'type'.",
+                    properties: {
+                        targetId: { type: Type.STRING, nullable: true, description: "For 'meta_tap' trigger." },
+                        taps: { type: Type.INTEGER, nullable: true, description: "For 'meta_tap' trigger." },
+                        hour: { type: Type.INTEGER, nullable: true, description: "For 'login_at_time' trigger (UTC hour 0-23)." },
+                        minute: { type: Type.INTEGER, nullable: true, description: "For 'login_at_time' trigger (minute 0-59)." },
+                        amount: { type: Type.INTEGER, nullable: true, description: "For 'balance_equals' trigger." },
+                        upgradeId: { type: Type.STRING, nullable: true, description: "For 'upgrade_purchased' trigger." },
+                    }
+                }
             },
             required: ["type", "params"]
         };
