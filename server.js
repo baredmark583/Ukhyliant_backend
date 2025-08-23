@@ -416,7 +416,6 @@ app.post('/api/player/:id', async (req, res) => {
 
         const dbRes = await dbClient.query('SELECT data FROM players WHERE id = $1 FOR UPDATE', [id]);
         if (dbRes.rows.length === 0) {
-            // This case should be rare, but handle it gracefully
             await dbClient.query('INSERT INTO players (id, data) VALUES ($1, $2)', [id, clientState]);
             await dbClient.query('COMMIT');
             return res.status(201).json(clientState);
@@ -431,36 +430,34 @@ app.post('/api/player/:id', async (req, res) => {
         
         let finalState = { ...serverState };
         let stateUpdatedForClient = false;
+        
+        // --- Authoritative Server-Side Balance Calculation ---
+        // 1. Calculate the value of taps performed by the client.
+        const baseTap = serverState.coinsPerTap || 1;
+        const level = serverState.tapGuruLevel || 0;
+        const effectiveCoinsPerTap = Math.ceil(baseTap * Math.pow(1.5, level));
+        // Note: Turbo mode is not factored in here as it's a client-side transient effect.
+        // The main goal is to secure the base balance calculation.
+        const tapEarnings = (clientTaps || 0) * effectiveCoinsPerTap;
 
-        // --- Core Sync and Update Logic ---
-        if (serverState.forceSync) {
-            // Admin reset has occurred. Server state is the source of truth.
-            // Ignore client's balance and energy, just apply new taps.
-            finalState.balance = (Number(serverState.balance) || 0) + Number(clientTaps || 0);
-            finalState.energy = clientState.energy;
-            finalState.dailyTaps = clientState.dailyTaps;
-            
-            delete finalState.forceSync; // Sync is done, remove the flag.
+        // 2. Update the server's balance authoritatively.
+        // We start with the server's balance, not the client's.
+        finalState.balance = (Number(serverState.balance) || 0) + tapEarnings;
+        
+        // 3. Update high-frequency fields from the client that are safe to trust.
+        finalState.energy = clientState.energy;
+        finalState.dailyTaps = clientState.dailyTaps;
+
+        // --- Handle other state updates ---
+        const adminBonus = Number(serverState.adminBonus) || 0;
+        if (adminBonus !== 0) {
+            finalState.balance += adminBonus;
+            finalState.adminBonus = 0; // Clear the bonus after applying
             stateUpdatedForClient = true;
-            log('info', `Forcing sync for user ${id} after admin reset.`);
-        } else {
-            // Standard update logic
-            // 1. Apply any pending admin bonus.
-            const adminBonus = Number(serverState.adminBonus) || 0;
-            if (adminBonus !== 0) {
-                finalState.balance = (Number(clientState.balance) || 0) + adminBonus;
-                finalState.adminBonus = 0;
-                stateUpdatedForClient = true;
-                log('info', `Applied admin bonus of ${adminBonus} to user ${id}.`);
-            } else {
-                finalState.balance = clientState.balance;
-            }
-             // 2. Update high-frequency fields from the client.
-            finalState.energy = clientState.energy;
-            finalState.dailyTaps = clientState.dailyTaps;
+            log('info', `Applied admin bonus of ${adminBonus} to user ${id}.`);
         }
 
-        // --- Anti-Cheat Check (applied on both paths) ---
+        // --- Anti-Cheat Check ---
         const timeDiff = (Date.now() - (serverState.lastLoginTimestamp || Date.now())) / 1000;
         if (timeDiff > 0.1 && clientTaps > 0) {
             const tps = clientTaps / timeDiff;
@@ -471,7 +468,7 @@ app.post('/api/player/:id', async (req, res) => {
                     finalState.isCheater = true;
                 }
                 log('warn', `High TPS detected for user ${id}: ${tps.toFixed(2)}`);
-                 stateUpdatedForClient = true; // Make sure client knows about cheat status
+                 stateUpdatedForClient = true;
             }
         }
 
