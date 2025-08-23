@@ -1301,23 +1301,25 @@ app.post('/admin/api/generate-ai-content', checkAdminAuth, async (req, res) => {
         const finalResponseSchema = {
             type: Type.OBJECT,
             properties: {
-                upgrades: { type: Type.ARRAY, items: upgradeSchema, nullable: true },
-                tasks: { type: Type.ARRAY, items: taskSchema, nullable: true },
-                specialTasks: { type: Type.ARRAY, items: specialTaskSchema, nullable: true },
-                boosts: { type: Type.ARRAY, items: boostSchema, nullable: true },
-                blackMarketCards: { type: Type.ARRAY, items: blackMarketCardSchema, nullable: true },
-                coinSkins: { type: Type.ARRAY, items: coinSkinSchema, nullable: true },
-                glitchEvents: { type: Type.ARRAY, items: glitchEventSchema, nullable: true },
+                upgrades: { type: Type.ARRAY, items: upgradeSchema },
+                tasks: { type: Type.ARRAY, items: taskSchema },
+                specialTasks: { type: Type.ARRAY, items: specialTaskSchema },
+                boosts: { type: Type.ARRAY, items: boostSchema },
+                blackMarketCards: { type: Type.ARRAY, items: blackMarketCardSchema },
+                coinSkins: { type: Type.ARRAY, items: coinSkinSchema },
+                glitchEvents: { type: Type.ARRAY, items: glitchEventSchema },
             },
         };
 
-        const systemInstruction = `You are a game designer for a satirical clicker game called 'Ukhyliant Clicker'. The game is set in a dystopian society, heavily inspired by Orwell's '1984', but with a modern Ukrainian context of war and mobilization. The player is a 'draft dodger' (ухилянт) trying to survive and profit. Your task is to generate new in-game content that is dark, humorous, and satirical based on the user's prompt.
-- The content should reflect the absurd and grim reality of dodging the draft, dealing with bureaucracy, finding loopholes, and navigating a surveillance state.
+        const systemInstruction = `You are a game mechanics generator. Everything you create exists in a dystopian reality.
+The setting is a mix of "1984", Nazi Germany, modern New York, Tokyo, and Hong Kong with a cyberpunk atmosphere, but without a specific future. The country is in a state of war, ruin, total surveillance, dictatorship, and propaganda. The player operates through a terminal: hacking servers, ministries of truth, accounting departments, spying, stealing information, upgrading cards, and using a glitch mechanic. Everything should feel dangerous, risky, and paranoid.
+Your main goal is to generate a rich and diverse set of content across ALL available categories (upgrades, tasks, boosts, etc.) that fits the user's prompt. Do not generate just one type of item unless specifically asked.
+- The content must reflect the absurd and grim reality of dodging the draft, dealing with bureaucracy, finding loopholes, and navigating a surveillance state.
 - Balance the game by making prices and profits reasonable but escalating.
 - For 'iconUrl' and 'imageUrl', provide a valid URL from api.iconify.design that thematically fits the item.
 - For 'id', create a short, unique string with a prefix indicating the type (e.g., 'ai_upg_1', 'ai_tsk_1').
 - Provide all localizable strings ('name', 'description', 'message') in English (en), Ukrainian (ua), and Russian (ru).
-- The generated content must strictly adhere to the provided JSON schema. Only generate properties that are part of the schema.
+- The generated content must strictly adhere to the provided JSON schema. You MUST attempt to populate all categories.
 - If the user's prompt is empty or too generic, generate a diverse set of 2-3 items for each of the following categories: upgrades, daily tasks, airdrop tasks, and boosts.`;
 
         const userPrompt = customPrompt || "The user did not provide a prompt. Generate a diverse starter pack of content.";
