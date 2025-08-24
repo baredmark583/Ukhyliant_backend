@@ -453,31 +453,35 @@ app.post('/api/player/:id', async (req, res) => {
         let stateUpdatedForClient = false;
         
         // --- Authoritative Server-Side Balance Calculation ---
-        // 1. Calculate the value of taps performed by the client.
         const baseTap = serverState.coinsPerTap || 1;
         const level = serverState.tapGuruLevel || 0;
         const effectiveCoinsPerTap = Math.ceil(baseTap * Math.pow(1.5, level));
-        // Note: Turbo mode is not factored in here as it's a client-side transient effect.
-        // The main goal is to secure the base balance calculation.
         const tapEarnings = (clientTaps || 0) * effectiveCoinsPerTap;
-
-        // 2. Update the server's balance authoritatively.
-        // We start with the server's balance, not the client's.
         finalState.balance = (Number(serverState.balance) || 0) + tapEarnings;
         
-        // 3. Update high-frequency fields from the client that are safe to trust.
+        // --- High-frequency & trusted client fields ---
         finalState.energy = clientState.energy;
         finalState.dailyTaps = clientState.dailyTaps;
 
-        // Merge discovered codes from client, as client-side triggers are valid.
-        const serverDiscovered = new Set(serverState.discoveredGlitchCodes || []);
-        const clientDiscovered = new Set(clientState.discoveredGlitchCodes || []);
-        if (clientDiscovered.size > serverDiscovered.size) {
-            const allDiscovered = Array.from(new Set([...serverDiscovered, ...clientDiscovered]));
-            finalState.discoveredGlitchCodes = allDiscovered;
-            // If the client discovered a new code, we should send the updated state back to confirm.
+        // --- Robustly merge arrays to prevent state regression ---
+        // Merge discovered codes
+        const serverDiscovered = serverState.discoveredGlitchCodes || [];
+        const clientDiscovered = clientState.discoveredGlitchCodes || [];
+        const mergedDiscovered = Array.from(new Set([...serverDiscovered, ...clientDiscovered]));
+        if (mergedDiscovered.length > serverDiscovered.length) {
             stateUpdatedForClient = true;
         }
+        finalState.discoveredGlitchCodes = mergedDiscovered;
+        
+        // Merge claimed codes
+        const serverClaimed = serverState.claimedGlitchCodes || [];
+        const clientClaimed = clientState.claimedGlitchCodes || [];
+        const mergedClaimed = Array.from(new Set([...serverClaimed, ...clientClaimed]));
+        if (mergedClaimed.length > serverClaimed.length) {
+            stateUpdatedForClient = true;
+        }
+        finalState.claimedGlitchCodes = mergedClaimed;
+
 
         // --- Handle other state updates ---
         const adminBonus = Number(serverState.adminBonus) || 0;
