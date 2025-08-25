@@ -1183,17 +1183,24 @@ app.post('/admin/api/translate-text', checkAdminAuth, async (req, res) => {
         
         const properties = {};
         targetLangs.forEach(lang => {
-          properties[lang] = { type: Type.STRING, description: `The translation of the text in the language with this ISO 639-1 code: ${lang}` };
+          properties[lang] = { type: Type.STRING, description: `The translation of the text into the language with this ISO 639-1 code: ${lang}` };
         });
 
         const responseSchema = {
           type: Type.OBJECT,
           properties,
+          required: targetLangs,
         };
+
+        const fullPrompt = `Translate the following English text into the specified languages: ${targetLangs.join(", ")}.
+
+        English text: "${text}"
+        
+        Return ONLY a valid JSON object with keys for each language code as specified in the schema.`;
 
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: `Translate the following text into these languages: ${targetLangs.join(", ")}. The text is: "${text}"`,
+            contents: fullPrompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema,
@@ -1201,7 +1208,16 @@ app.post('/admin/api/translate-text', checkAdminAuth, async (req, res) => {
         });
 
         const jsonText = response.text.trim();
-        const translations = JSON.parse(jsonText);
+        
+        let cleanedJsonText = jsonText;
+        if (cleanedJsonText.startsWith('```json')) {
+            cleanedJsonText = cleanedJsonText.substring(7);
+        }
+        if (cleanedJsonText.endsWith('```')) {
+            cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);
+        }
+
+        const translations = JSON.parse(cleanedJsonText.trim());
         res.json({ translations });
     } catch (e) {
         log('error', "AI translation failed", e);
